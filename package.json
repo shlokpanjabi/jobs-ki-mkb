@@ -6,14 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate": "node scripts/db.mjs migrate",
+    "db:seed": "node scripts/db.mjs seed",
+    "db:setup": "node scripts/db.mjs setup",
+    "keys": "node scripts/generate-keys.mjs"
   },
   "dependencies": {
     "next": "16.4.2",
+    "postgres": "^3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@next/env": "^16.4.2",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
