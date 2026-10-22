@@ -64,3 +64,7 @@ begin
     revoke all on users, jobs, user_jobs, api_keys from anon, authenticated;
   end if;
 end $$;
+
+-- Email status sync tables (inbound_addresses, status_events) live in
+-- lib/inbound/schema.mjs: `npm run db:migrate` applies them after this file, and
+-- the app applies them on first use.
