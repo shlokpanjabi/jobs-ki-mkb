@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { todayISO } from "@/lib/ingest/normalise.mjs";
 import { audienceFor, parseProfiles } from "@/lib/ingest/profiles.mjs";
 import { formatSummary, runIngest, selectSources } from "@/lib/ingest/run.mjs";
-import { createStore, resolveUsers } from "@/lib/ingest/store.mjs";
+import { createStore, relabelUkRegions, resolveUsers } from "@/lib/ingest/store.mjs";
 
 // Sources are rate-limited, so a full run takes a minute or two.
 export const maxDuration = 300;
@@ -34,7 +34,8 @@ export async function GET(request: Request) {
       : undefined;
     const save = dryRun ? undefined : createStore(db(), users);
     const summary = await runIngest({ sources, dryRun, save, audience, today });
-    console.log(`ingest summary\n${formatSummary(summary)}`);
+    const relabelled = dryRun ? 0 : await relabelUkRegions(db());
+    console.log(`ingest summary\n${formatSummary(summary)}${relabelled ? `\nrelabelled ${relabelled} older UK jobs` : ""}`);
     return Response.json(summary, { status: summary.ok ? 200 : 502 });
   } catch (err) {
     // Setup errors (missing DATABASE_URL, unknown source or user names, bad
