@@ -1,5 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
+import { todayISO } from "@/lib/ingest/normalise.mjs";
+import { audienceFor, parseProfiles } from "@/lib/ingest/profiles.mjs";
 import { formatSummary, runIngest, selectSources } from "@/lib/ingest/run.mjs";
 import { createStore, resolveUsers } from "@/lib/ingest/store.mjs";
 
@@ -23,13 +25,20 @@ export async function GET(request: Request) {
   const dryRun = ["1", "true"].includes(new URL(request.url).searchParams.get("dryRun") ?? "");
   try {
     const sources = selectSources(process.env.INGEST_SOURCES);
-    const save = dryRun ? undefined : createStore(db(), await resolveUsers(db()));
-    const summary = await runIngest({ sources, dryRun, save });
+    const profiles = parseProfiles();
+    const users = await resolveUsers(db());
+    const today = todayISO();
+    const audience = Object.keys(profiles).length
+      ? (job: Parameters<typeof audienceFor>[0], details: Parameters<typeof audienceFor>[1]) =>
+          audienceFor(job, details, users, profiles, today)
+      : undefined;
+    const save = dryRun ? undefined : createStore(db(), users);
+    const summary = await runIngest({ sources, dryRun, save, audience, today });
     console.log(`ingest summary\n${formatSummary(summary)}`);
     return Response.json(summary, { status: summary.ok ? 200 : 502 });
   } catch (err) {
-    // Setup errors (missing DATABASE_URL, unknown source or user names). Message
-    // only: driver errors can carry query parameters.
+    // Setup errors (missing DATABASE_URL, unknown source or user names, bad
+    // INGEST_PROFILES). Message only: driver errors can carry query parameters.
     const message = err instanceof Error ? err.message : "unknown error";
     console.error(`GET /api/cron/ingest failed: ${message}`);
     return Response.json({ error: "Ingest failed to start", details: message }, { status: 500 });

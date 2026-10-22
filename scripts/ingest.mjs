@@ -5,6 +5,8 @@
 //   npm run ingest -- --dry-run                 # print what would be saved, write nothing
 //   npm run ingest -- --source=gradcracker,luma # only these sources
 import nextEnv from "@next/env";
+import { todayISO } from "../lib/ingest/normalise.mjs";
+import { audienceFor, parseProfiles } from "../lib/ingest/profiles.mjs";
 import { formatSummary, runIngest, selectSources } from "../lib/ingest/run.mjs";
 import { createStore, resolveUsers } from "../lib/ingest/store.mjs";
 import { connect } from "./connect.mjs";
@@ -24,13 +26,16 @@ if (unknownFlags.length) {
 const sql = dryRun ? null : connect();
 try {
   const sources = selectSources(sourceArg ?? process.env.INGEST_SOURCES);
-  let save;
-  if (sql) {
-    const users = await resolveUsers(sql);
-    console.log(`Saving jobs as eligible for: ${users.join(", ")}`);
-    save = createStore(sql, users);
-  }
-  const summary = await runIngest({ sources, dryRun, save });
+  const profiles = parseProfiles();
+  // Without a database (dry run), the profiles' users stand in for the users table.
+  const users = sql ? await resolveUsers(sql) : Object.keys(profiles);
+  const today = todayISO();
+  const audience = users.length && Object.keys(profiles).length
+    ? (job, details) => audienceFor(job, details, users, profiles, today)
+    : undefined;
+  console.log(`Users: ${users.join(", ") || "(none)"}; profiles for: ${Object.keys(profiles).join(", ") || "nobody (everyone sees everything)"}`);
+  const save = sql ? createStore(sql, users) : undefined;
+  const summary = await runIngest({ sources, dryRun, save, audience, today });
   console.log(`\n${formatSummary(summary)}`);
   if (!summary.ok) process.exitCode = 1;
 } catch (err) {
