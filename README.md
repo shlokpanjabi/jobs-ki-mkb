@@ -54,7 +54,7 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `APP_TIMEZONE`   | no       | IANA timezone (e.g. `America/New_York`, `Asia/Kolkata`) used to decide what "today" is for deadlines. Defaults to `UTC`. |
 | `INGEST_USERS`   | no       | Comma-separated user ids who see ingested jobs, e.g. `shlok,taran`. Defaults to every user. |
 | `INGEST_PROFILES` | no      | JSON per-person rules (year of study, grade, hidden regions); see [Who sees what](#who-sees-what). |
-| `INGEST_SOURCES` | no       | Comma-separated subset of the source names in [Job ingestion](#job-ingestion). Defaults to all of them. |
+| `INGEST_SOURCES` | no       | Comma-separated source names from [Job ingestion](#job-ingestion). Defaults to the ones that work. |
 | `INGEST_SHEETS`  | no       | Comma-separated CSV / Google Sheets URLs to import (see [Your spreadsheets](#job-ingestion)). |
 | `CRON_SECRET`    | for the cron | Secret Vercel Cron sends as `Authorization: Bearer <CRON_SECRET>`. Without it `/api/cron/ingest` answers `503`. |
 
@@ -136,6 +136,12 @@ deadline, source, link`):
 | `internshala` | `uk-boards.mjs` | Internship listing pages, then each job page's JSON-LD (region India) |
 | `luma` | `luma.mjs` | Luma discovery pages (`/london`, `/ai`, `/tech`), keeping hackathons |
 
+**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `internshala`, `luma`.
+`gradcracker`, `bright-network`, `prosple-uk` and `indeed-uk` refused automated requests in
+production (403 on their pages or robots.txt, or a robots.txt that disallows the feed), so they're
+off by default. Because the pipeline respects robots.txt and doesn't disguise itself, there's no
+way round that. Name them in `INGEST_SOURCES` to try them again later.
+
 The GitHub lists (`simplify`, `speedyapply`, `northwestern-quant`) are the biggest: about 3,300
 roles on a first run, mostly US. They only take roles posted in the last 30 days (`MAX_AGE_DAYS` in
 `github.mjs`) so the board isn't flooded with stale listings. Jobs are never deleted when a listing
@@ -200,8 +206,8 @@ LinkedIn, Glassdoor, Naukri, Trackr, SimplyTK. Web search would need a paid sear
 
 `run.mjs` runs all sources at the same time, normalises each job (cleans the text, skips rows
 with missing fields or a past deadline, guesses `domain` from the title when the source has none),
-drops links already seen in this run, and upserts the rest straight into Postgres (`store.mjs`) by
-normalised link, with the same rules as `POST /api/jobs`: an existing job's details are refreshed,
+drops links already seen in this run, and upserts the rest straight into Postgres (`store.mjs`, 200
+jobs per statement) by normalised link, with the same rules as `POST /api/jobs`: an existing job's details are refreshed,
 and nobody's status is touched. Every job is marked eligible for every user (or just
 `INGEST_USERS`), so no API key is needed. Re-running is safe. A source that throws is reported and
 skipped; the others still run.
@@ -235,7 +241,7 @@ npm test                                     # unit tests for the parsers and th
 TEST_DATABASE_URL=postgres://… npm test      # also test the database writes (use a scratch database)
 ```
 
-The script exits with `1` if any source failed or any job couldn't be saved. If 5 saves fail in a
+The script exits with `1` if any source failed or any job couldn't be saved. If 3 batches fail in a
 row it stops, assuming the database is down.
 
 ### Nightly cron on Vercel
@@ -258,7 +264,8 @@ same table as the script.
 
 `/api/cron` isn't behind `BOARD_PASSWORD`, because Vercel Cron can't send it; `CRON_SECRET` protects
 it instead. The route allows up to 300 s (`maxDuration`); a normal run takes a minute or two
-because of the rate limits. A local run of the three GitHub sources (3,284 roles) took 16 s.
+because of the rate limits. Writes are batched, so saving about 3,500 jobs takes a couple of dozen
+database round trips.
 
 ## Deploying to Vercel
 
