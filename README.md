@@ -4,7 +4,8 @@ A shared board of internships, part-time jobs, fellowships and hackathons for Ta
 Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 
 - **All roles** (`/`): search, filter by type / domain / region / deadline / status, sort by deadline.
-- **Closing in 7 days** (`/closing`): the same board limited to deadlines from today through 7 days out.
+  The **Closing soon** chip limits it to deadlines from today through 7 days out (`/?due=7`; the old
+  `/closing` link redirects there).
 - **User switcher**: each person only sees roles marked eligible for them, with their own status.
 - **Apply** opens the posting; **Mark applied** sets your status in one click (or use the status dropdown).
 - **`POST /api/jobs`**: add or update a job with a per-user API key. Jobs are deduped by link.

@@ -6,8 +6,6 @@ import { updateStatus } from "@/app/actions";
 import { daysBetween } from "@/lib/dates";
 import { JOB_TYPES, STATUSES, type BoardRow, type JobType, type Status } from "@/lib/types";
 
-export type View = "all" | "closing";
-
 const TYPE_LABEL: Record<JobType, string> = {
   internship: "Internship",
   "part-time": "Part-time",
@@ -113,7 +111,7 @@ function formatDate(iso: string, today: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", options);
 }
 
-export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: string; view: View }) {
+export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
   const query = useDeferredValue(filters.q);
@@ -125,14 +123,15 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
       current.map((row) => (row.id === change.id ? { ...row, status: change.status } : row)),
   );
 
-  const due: Due = view === "closing" ? "7" : filters.due;
+  const due = filters.due;
+  const closingSoon = due === "7";
   const update = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
   // Keep filters in the URL so a refresh or shared link shows the same view.
   useEffect(() => {
-    const qs = filtersToQuery(view === "closing" ? { ...filters, due: DEFAULTS.due } : filters);
+    const qs = filtersToQuery(filters);
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [filters, view]);
+  }, [filters]);
 
   const domains = useMemo(() => uniqueSorted(rows.map((r) => r.domain)), [rows]);
   const regions = useMemo(() => uniqueSorted(rows.map((r) => r.region)), [rows]);
@@ -166,7 +165,7 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
     });
   }
 
-  const isFiltered = filtersToQuery({ ...filters, due: view === "closing" ? DEFAULTS.due : filters.due }) !== "";
+  const isFiltered = filtersToQuery(filters) !== "";
   const selectClass = "rounded border border-gray-300 bg-white px-2 py-1.5";
 
   return (
@@ -180,6 +179,17 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
           aria-label="Search"
           className="w-64 rounded border border-gray-300 px-2 py-1.5"
         />
+        <button
+          onClick={() => update({ due: closingSoon ? DEFAULTS.due : "7" })}
+          aria-pressed={closingSoon}
+          className={
+            closingSoon
+              ? "rounded-full border border-red-700 bg-red-50 px-3 py-1.5 font-medium text-red-800"
+              : "rounded-full border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+          }
+        >
+          Closing soon
+        </button>
         <select aria-label="Type" value={filters.type} onChange={(e) => update({ type: e.target.value })} className={selectClass}>
           <option value="">All types</option>
           {JOB_TYPES.map((t) => (
@@ -198,13 +208,11 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
-        {view === "all" && (
-          <select aria-label="Deadline" value={filters.due} onChange={(e) => update({ due: e.target.value as Due })} className={selectClass}>
-            {(Object.keys(DUE_LABEL) as Due[]).map((d) => (
-              <option key={d} value={d}>{DUE_LABEL[d]}</option>
-            ))}
-          </select>
-        )}
+        <select aria-label="Deadline" value={filters.due} onChange={(e) => update({ due: e.target.value as Due })} className={selectClass}>
+          {(Object.keys(DUE_LABEL) as Due[]).map((d) => (
+            <option key={d} value={d}>{DUE_LABEL[d]}</option>
+          ))}
+        </select>
         <select aria-label="Status" value={filters.status} onChange={(e) => update({ status: e.target.value })} className={selectClass}>
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
@@ -259,7 +267,7 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
           <p className="px-3 py-10 text-center text-sm text-gray-500">
             {rows.length === 0
               ? "No roles on your board yet. Roles show up here when they're posted to /api/jobs with your key."
-              : view === "closing"
+              : closingSoon
                 ? "Nothing closing in the next 7 days."
                 : "No roles match these filters."}
           </p>

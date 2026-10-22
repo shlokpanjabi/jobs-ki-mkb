@@ -1,13 +1,6 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { BoardSection, BoardFallback } from "@/components/BoardSection";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Closing in 7 days · Apply Tracker" };
-
+// "Closing in 7 days" is now the Closing soon chip on All roles.
 export default function ClosingSoonPage() {
-  return (
-    <Suspense fallback={<BoardFallback />}>
-      <BoardSection view="closing" />
-    </Suspense>
-  );
+  redirect("/?due=7");
 }

@@ -5,15 +5,10 @@ import { describeHome } from "@/lib/home-filter";
 import { getBoardRows, getUsers } from "@/lib/jobs";
 import type { BoardRow } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
-import { JobBoard, type View } from "./JobBoard";
+import { JobBoard } from "./JobBoard";
 import { UserSwitcher } from "./UserSwitcher";
 
-const TITLES: Record<View, string> = {
-  all: "All roles",
-  closing: "Closing in the next 7 days",
-};
-
-export async function BoardSection({ view }: { view: View }) {
+export async function BoardSection() {
   const cookieUser = (await cookies()).get(USER_COOKIE)?.value ?? "";
   const [users, rows] = await Promise.all([
     getUsers(),
@@ -34,14 +29,14 @@ export async function BoardSection({ view }: { view: View }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">{TITLES[view]}</h1>
+        <h1 className="text-lg font-semibold">All roles</h1>
         <UserSwitcher users={users} current={user.id} />
       </div>
       <p className="text-sm text-gray-500">
         Showing {describeHome(user.homeRegions, user.homeTypes)}.{" "}
         <Link href="/settings" className="underline hover:text-gray-900">Change this in Settings</Link>
       </p>
-      <JobBoard rows={rows} today={todayISO()} view={view} />
+      <JobBoard rows={rows} today={todayISO()} />
     </div>
   );
 }

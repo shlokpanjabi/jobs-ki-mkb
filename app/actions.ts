@@ -41,7 +41,7 @@ export async function updateStatus(
   if (!Number.isInteger(jobId) || !isStatus(status)) return { ok: false, error: "Invalid update." };
 
   const updated = await setStatus(userId, jobId, status);
-  // Purges the client router cache so "/" and "/closing" both show the change.
+  // Purges the client router cache so every page shows the change.
   revalidatePath("/", "layout");
   return updated ? { ok: true } : { ok: false, error: "That role is no longer on your board." };
 }
