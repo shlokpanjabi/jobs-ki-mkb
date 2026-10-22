@@ -10,7 +10,9 @@
     "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/db.mjs seed",
     "db:setup": "node scripts/db.mjs setup",
-    "keys": "node scripts/generate-keys.mjs"
+    "keys": "node scripts/generate-keys.mjs",
+    "ingest": "node scripts/ingest.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "next": "16.4.2",
