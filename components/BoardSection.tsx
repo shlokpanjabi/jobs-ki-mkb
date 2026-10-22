@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { todayISO } from "@/lib/dates";
+import { describeHome } from "@/lib/home-filter";
 import { getBoardRows, getUsers } from "@/lib/jobs";
 import type { BoardRow } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
@@ -35,6 +37,10 @@ export async function BoardSection({ view }: { view: View }) {
         <h1 className="text-lg font-semibold">{TITLES[view]}</h1>
         <UserSwitcher users={users} current={user.id} />
       </div>
+      <p className="text-sm text-gray-500">
+        Showing {describeHome(user.homeRegions, user.homeTypes)}.{" "}
+        <Link href="/settings" className="underline hover:text-gray-900">Change this in Settings</Link>
+      </p>
       <JobBoard rows={rows} today={todayISO()} view={view} />
     </div>
   );

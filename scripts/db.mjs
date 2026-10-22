@@ -1,6 +1,7 @@
 // Applies the SQL files in db/ using DATABASE_URL (loaded from .env.local like Next does).
 // Usage: node scripts/db.mjs <migrate|seed|setup>
 import { readFile } from "node:fs/promises";
+import { ensureAppSchema } from "../lib/app-schema.mjs";
 import { ensureInboundSchema } from "../lib/inbound/schema.mjs";
 import { connect } from "./connect.mjs";
 
@@ -26,6 +27,8 @@ try {
       // Email status sync tables; kept in JS so the app can also apply them itself.
       await ensureInboundSchema(sql);
       console.log("Applied lib/inbound/schema.mjs");
+      await ensureAppSchema(sql);
+      console.log("Applied lib/app-schema.mjs");
     }
   }
 } catch (err) {

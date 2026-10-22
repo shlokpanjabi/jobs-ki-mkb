@@ -6,6 +6,7 @@ import { forwardingAddress } from "@/lib/inbound/email.mjs";
 import { getUsers } from "@/lib/jobs";
 import { USER_COOKIE } from "@/lib/user";
 import { CopyButton } from "./CopyButton";
+import { HomeFilterForm } from "./HomeFilterForm";
 import { UserSwitcher } from "./UserSwitcher";
 
 const LABEL_TEXT: Record<string, string> = {
@@ -66,7 +67,7 @@ function PickUser({ users, title }: { users: Awaited<ReturnType<typeof getUsers>
   );
 }
 
-export async function SettingsSection() {
+export async function SettingsSection({ homeNotice }: { homeNotice?: "saved" | "empty" }) {
   const { users, user } = await currentUser();
   if (!user) return <PickUser users={users} title="Settings" />;
   const sql = db();
@@ -78,16 +79,23 @@ export async function SettingsSection() {
     ];
   } catch (err) {
     console.error(`settings: email sync unavailable: ${err instanceof Error ? err.message : err}`);
-    return <SyncNotReady users={users} user={user.id} title="Settings" />;
+    return (
+      <div className="flex max-w-3xl flex-col gap-6">
+        <SettingsHeader users={users} user={user.id} />
+        <HomeFilterForm user={user} notice={homeNotice} />
+        <section className="flex flex-col gap-2">
+          <h2 className="font-medium">Email status sync</h2>
+          <p className="text-sm text-gray-500">Email sync isn&apos;t set up yet.</p>
+        </section>
+      </div>
+    );
   }
   const address = forwardingAddress(addressRow.token);
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <UserSwitcher users={users} current={user.id} />
-      </div>
+      <SettingsHeader users={users} user={user.id} />
+      <HomeFilterForm user={user} notice={homeNotice} />
 
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Email status sync</h2>
@@ -173,6 +181,15 @@ export async function SettingsSection() {
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+function SettingsHeader({ users, user }: { users: Awaited<ReturnType<typeof getUsers>>; user: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-lg font-semibold">Settings</h1>
+      <UserSwitcher users={users} current={user} />
     </div>
   );
 }

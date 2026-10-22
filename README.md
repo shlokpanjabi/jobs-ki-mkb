@@ -1,6 +1,6 @@
 # Apply Tracker
 
-A shared board of internships, part-time jobs and fellowships for Taran, Shlok and Muzzamil.
+A shared board of internships, part-time jobs, fellowships and hackathons for Taran, Shlok and Muzzamil.
 Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 
 - **All roles** (`/`): search, filter by type / domain / region / deadline / status, sort by deadline.
@@ -88,7 +88,7 @@ curl -X POST https://<your-app>/api/jobs \
 | ---------- | -------- | ----- |
 | `company`  | yes      | |
 | `role`     | yes      | |
-| `type`     | yes      | `internship`, `part-time` or `fellowship` (case-insensitive; `part time` works too) |
+| `type`     | yes      | `internship`, `part-time`, `fellowship` or `hackathon` (case-insensitive; `part time` works too) |
 | `link`     | yes      | http(s) URL. Normalized for dedupe: `#fragment`, `utm_*` params and trailing `/` are dropped. |
 | `deadline` | no       | `YYYY-MM-DD`. Omit for rolling deadlines. |
 | `domain`, `location`, `region`, `source` | no | Free text. `domain` and `region` populate the filter dropdowns. |
@@ -153,9 +153,9 @@ closes; they stay on the board until their deadline passes or you mark them.
 their job pages (Gradcracker, Bright Network, Prosple, Internshala). Adding another such board is a
 config entry: its origin, search paths and job URL pattern.
 
-Search terms, page lists and repos are constants at the top of each module. The `jobs` table only
-allows `internship`, `part-time` and `fellowship`, so hackathons are stored as fellowships with
-domain `Hackathon`. Their deadline is the event's start date. UK locations are split into two regions,
+Search terms, page lists and repos are constants at the top of each module. Anything whose role or
+domain mentions a hackathon is saved with type `hackathon`. A hackathon's deadline is the event's
+start date. UK locations are split into two regions,
 `London` and `UK (outside London)`, so each is its own option in the board's region filter. Each run
 also relabels older UK jobs that were filed under `Europe`.
 

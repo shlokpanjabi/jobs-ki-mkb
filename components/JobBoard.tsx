@@ -12,6 +12,7 @@ const TYPE_LABEL: Record<JobType, string> = {
   internship: "Internship",
   "part-time": "Part-time",
   fellowship: "Fellowship",
+  hackathon: "Hackathon",
 };
 
 const STATUS_LABEL: Record<Status, string> = {
