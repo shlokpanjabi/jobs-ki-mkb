@@ -53,6 +53,7 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `BOARD_PASSWORD` | no       | If set, the board UI asks for this password (HTTP Basic auth, any username). `/api/jobs` is unaffected. Recommended for a public deployment. |
 | `APP_TIMEZONE`   | no       | IANA timezone (e.g. `America/New_York`, `Asia/Kolkata`) used to decide what "today" is for deadlines. Defaults to `UTC`. |
 | `INGEST_USERS`   | no       | Comma-separated user ids who see ingested jobs, e.g. `shlok,taran`. Defaults to every user. |
+| `INGEST_PROFILES` | no      | JSON per-person rules (year of study, grade, hidden regions); see [Who sees what](#who-sees-what). |
 | `INGEST_SOURCES` | no       | Comma-separated subset of the source names in [Job ingestion](#job-ingestion). Defaults to all of them. |
 | `INGEST_SHEETS`  | no       | Comma-separated CSV / Google Sheets URLs to import (see [Your spreadsheets](#job-ingestion)). |
 | `CRON_SECRET`    | for the cron | Secret Vercel Cron sends as `Authorization: Bearer <CRON_SECRET>`. Without it `/api/cron/ingest` answers `503`. |
@@ -156,6 +157,43 @@ are matched by header, in any order: `company`, `role` (or `title`/`position`) a
 `closing date`) are optional. A missing type is guessed from the role. Dates can be `2026-11-30`,
 `30 Nov 2026` or `30/11/2026` (day first). Spreadsheet rows win over the other sources for the same
 link.
+
+### Who sees what
+
+By default every ingested job is shown to every user (or only `INGEST_USERS`). Set
+`INGEST_PROFILES` to tailor it per person. It's JSON in an environment variable rather than code,
+because the repo is public:
+
+```json
+{"alex": {"started": 2025, "courseYears": 3, "grade": 68, "hideRegions": ["Canada"]},
+ "sam":  {"started": 2025, "courseYears": 4, "grade": "2:1", "hideRegions": ["US"]}}
+```
+
+| Field | Meaning |
+| ----- | ------- |
+| `started` | Year they started university. Their year of study moves on by itself each September. |
+| `courseYears` | Length of the degree (`4` for an integrated master's). |
+| `grade` | Percentage, or `first` / `upper 2:1` / `2:1` / `lower 2:1` / `2:2`. |
+| `hideRegions` | Board regions never shown to them, e.g. `["US"]`. |
+
+Rules in `profiles.mjs` only act on what a listing actually says, so a listing that mentions no year,
+grade or degree is shown to everyone it's not region-hidden from:
+
+- **Year of study:** "penultimate" → penultimate-year students; "spring week" / "insight programme" →
+  first year of a 3-year degree or first/second year of a 4-year one; "final year students" / "new
+  grad" → final year; "second year students" → year 2.
+- **Terms:** a "Summer 2028" role is hidden from anyone graduating by June 2028. Roles whose terms are
+  all over are hidden from everyone.
+- **Graduation year:** "graduating in 2029" → only people graduating in 2029.
+- **Grade:** "2:1" → 60%+, "high 2:1" → 65%+, "first class" → 70%+, "minimum 68%" → 68%+.
+- **Degree:** PhD, Master's or MBA-only roles (by title, or Simplify's degree list) are hidden from
+  everyone.
+
+The board sources (Gradcracker, Bright Network, Prosple, Internshala) give the most to go on, since
+their job descriptions are read too. A spreadsheet's `notes` / `requirements` column is read as well.
+Each run re-applies the rules to the jobs it finds: a job that no longer qualifies is hidden, unless
+that person has already moved it past "To do". The log ends with how many of the run's jobs each
+person can see.
 
 **Not included**, because they need a login or don't allow automated access: Handshake, MyCareers,
 LinkedIn, Glassdoor, Naukri, Trackr, SimplyTK. Web search would need a paid search API key.
