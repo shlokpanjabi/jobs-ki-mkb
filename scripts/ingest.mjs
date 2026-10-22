@@ -17,7 +17,7 @@ const sourceArg = args.find((a) => a.startsWith("--source="))?.slice("--source="
 const unknownFlags = args.filter((a) => a !== "--dry-run" && !a.startsWith("--source="));
 if (unknownFlags.length) {
   console.error(`Unknown argument(s): ${unknownFlags.join(" ")}`);
-  console.error("Usage: node scripts/ingest.mjs [--dry-run] [--source=gradcracker,indeed-uk,luma]");
+  console.error("Usage: node scripts/ingest.mjs [--dry-run] [--source=simplify,sheets,...]");
   process.exit(1);
 }
 

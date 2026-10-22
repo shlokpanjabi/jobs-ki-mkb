@@ -8,7 +8,8 @@ Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 - **User switcher**: each person only sees roles marked eligible for them, with their own status.
 - **Apply** opens the posting; **Mark applied** sets your status in one click (or use the status dropdown).
 - **`POST /api/jobs`**: add or update a job with a per-user API key. Jobs are deduped by link.
-- **Nightly ingestion**: a daily cron pulls listings from Gradcracker, Indeed UK and Luma hackathons
+- **Nightly ingestion**: a daily cron pulls listings from ten sources (Simplify, speedyapply, Gradcracker,
+  Bright Network, Prosple, Indeed UK, Internshala, Luma, a quant list and your own spreadsheets)
   straight into the database for everyone (see [Job ingestion](#job-ingestion)).
 
 ## How it fits together
@@ -52,7 +53,8 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `BOARD_PASSWORD` | no       | If set, the board UI asks for this password (HTTP Basic auth, any username). `/api/jobs` is unaffected. Recommended for a public deployment. |
 | `APP_TIMEZONE`   | no       | IANA timezone (e.g. `America/New_York`, `Asia/Kolkata`) used to decide what "today" is for deadlines. Defaults to `UTC`. |
 | `INGEST_USERS`   | no       | Comma-separated user ids who see ingested jobs, e.g. `shlok,taran`. Defaults to every user. |
-| `INGEST_SOURCES` | no       | Comma-separated subset of `gradcracker`, `indeed-uk`, `luma`. Defaults to all three. |
+| `INGEST_SOURCES` | no       | Comma-separated subset of the source names in [Job ingestion](#job-ingestion). Defaults to all of them. |
+| `INGEST_SHEETS`  | no       | Comma-separated CSV / Google Sheets URLs to import (see [Your spreadsheets](#job-ingestion)). |
 | `CRON_SECRET`    | for the cron | Secret Vercel Cron sends as `Authorization: Bearer <CRON_SECRET>`. Without it `/api/cron/ingest` answers `503`. |
 
 ## API
@@ -116,20 +118,47 @@ last used.
 
 ## Job ingestion
 
-`lib/ingest/` has one module per source. Each reads public listing pages (no logins) and returns
-jobs in the same shape as `POST /api/jobs` (`company, role, type, domain, location, region, deadline,
-source, link`):
+`lib/ingest/` has one module per source. Each reads public pages, feeds or files (no logins) and
+returns jobs in the same shape as `POST /api/jobs` (`company, role, type, domain, location, region,
+deadline, source, link`):
 
-| Source        | Module            | What it reads | Type |
-| ------------- | ----------------- | ------------- | ---- |
-| `gradcracker` | `gradcracker.mjs` | Placement/internship search pages, then each job page's JSON-LD `JobPosting` (40 job pages max per run) | `internship` |
-| `indeed-uk`   | `indeed.mjs`      | The RSS feed for "intern" (internships) and "student" (part-time) jobs posted in the last 7 days, falling back to the search page's embedded job cards | `internship` / `part-time` |
-| `luma`        | `luma.mjs`        | Luma discovery pages (`/london`, `/ai`, `/tech`), keeping events whose name looks like a hackathon | `fellowship`, domain `Hackathon` |
+| Source | Module | What it reads |
+| ------ | ------ | ------------- |
+| `sheets` | `sheets.mjs` | Your own spreadsheets: every CSV URL in `INGEST_SHEETS` (see below) |
+| `gradcracker` | `gradcracker.mjs` | Placement/internship search pages, then each job page's JSON-LD `JobPosting` |
+| `bright-network` | `uk-boards.mjs` | Internship search pages, then each job page's JSON-LD |
+| `prosple-uk` | `uk-boards.mjs` | Internship search pages, then each job page's JSON-LD |
+| `northwestern-quant` | `northwestern.mjs` | [northwesternfintech/2027QuantInternships](https://github.com/northwesternfintech/2027QuantInternships): open (✅) links only |
+| `simplify` | `simplify.mjs` | [SimplifyJobs/Summer2027-Internships](https://github.com/SimplifyJobs/Summer2027-Internships)' `listings.json`: active roles |
+| `speedyapply` | `speedyapply.mjs` | speedyapply's [2027 SWE](https://github.com/speedyapply/2027-SWE-College-Jobs) and [2027 AI](https://github.com/speedyapply/2027-AI-College-Jobs) internship lists (US and international) |
+| `indeed-uk` | `indeed.mjs` | RSS for "intern" / "student" part-time jobs from the last 7 days, falling back to the search page's job cards |
+| `internshala` | `uk-boards.mjs` | Internship listing pages, then each job page's JSON-LD (region India) |
+| `luma` | `luma.mjs` | Luma discovery pages (`/london`, `/ai`, `/tech`), keeping hackathons |
 
-Search terms and page lists are constants at the top of each module. The `jobs` table only allows
-`internship`, `part-time` and `fellowship`, so hackathons are stored as fellowships with domain
-`Hackathon` (filter on the domain to find them). Their deadline is the event's start date.
-UK locations get region `Europe`, like the seed data (`UK_REGION` in `normalise.mjs` changes that).
+The GitHub lists (`simplify`, `speedyapply`, `northwestern-quant`) are the biggest: about 3,300
+roles on a first run, mostly US. They only take roles posted in the last 30 days (`MAX_AGE_DAYS` in
+`github.mjs`) so the board isn't flooded with stale listings. Jobs are never deleted when a listing
+closes; they stay on the board until their deadline passes or you mark them.
+
+`board.mjs` is the shared crawler for job boards that publish schema.org `JobPosting` data on
+their job pages (Gradcracker, Bright Network, Prosple, Internshala). Adding another such board is a
+config entry: its origin, search paths and job URL pattern.
+
+Search terms, page lists and repos are constants at the top of each module. The `jobs` table only
+allows `internship`, `part-time` and `fellowship`, so hackathons are stored as fellowships with
+domain `Hackathon`. Their deadline is the event's start date. UK locations get region `Europe`,
+like the seed data (`UK_REGION` in `normalise.mjs` changes that).
+
+**Your spreadsheets.** Put one or more CSV URLs in `INGEST_SHEETS`, comma-separated. A Google Sheet
+works if it's shared as *Anyone with the link can view*; paste its normal `…/edit#gid=…` URL. Columns
+are matched by header, in any order: `company`, `role` (or `title`/`position`) and `link` (or
+`url`/`apply link`) are required; `type`, `domain`, `location`, `region` and `deadline` (or
+`closing date`) are optional. A missing type is guessed from the role. Dates can be `2026-11-30`,
+`30 Nov 2026` or `30/11/2026` (day first). Spreadsheet rows win over the other sources for the same
+link.
+
+**Not included**, because they need a login or don't allow automated access: Handshake, MyCareers,
+LinkedIn, Glassdoor, Naukri, Trackr, SimplyTK. Web search would need a paid search API key.
 
 `run.mjs` runs all sources at the same time, normalises each job (cleans the text, skips rows
 with missing fields or a past deadline, guesses `domain` from the title when the source has none),
@@ -163,7 +192,7 @@ if longer (capped at 30 s). A `429`/`503` is retried once after `Retry-After`.
 ```bash
 npm run ingest -- --dry-run                  # fetch and print what would be saved; writes nothing
 npm run ingest                               # save to the DATABASE_URL database
-npm run ingest -- --source=gradcracker,luma  # only some sources
+npm run ingest -- --source=simplify,sheets   # only some sources
 npm test                                     # unit tests for the parsers and the pipeline
 TEST_DATABASE_URL=postgres://… npm test      # also test the database writes (use a scratch database)
 ```
@@ -191,7 +220,7 @@ same table as the script.
 
 `/api/cron` isn't behind `BOARD_PASSWORD`, because Vercel Cron can't send it; `CRON_SECRET` protects
 it instead. The route allows up to 300 s (`maxDuration`); a normal run takes a minute or two
-because of the rate limits.
+because of the rate limits. A local run of the three GitHub sources (3,284 roles) took 16 s.
 
 ## Deploying to Vercel
 
