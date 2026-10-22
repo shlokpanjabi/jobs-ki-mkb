@@ -227,9 +227,7 @@ everything, while `401`/`403`/`429`/`5xx` or an unreachable file means the site 
 all. Requests to one host are made one at a time, at least 2 s apart, or the site's `Crawl-delay`
 if longer (capped at 30 s). A `429`/`503` is retried once after `Retry-After`.
 
-> Indeed doesn't like automated clients and may answer `403`, or its robots.txt may disallow the
-> pages. When that happens `indeed-uk` fails on its own each night; set
-> `INGEST_SOURCES=gradcracker,luma` to stop running it. Check each site's terms before enabling it.
+Check a site's terms before turning one of the off-by-default sources back on.
 
 ### Running it
 
