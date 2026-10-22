@@ -6,6 +6,7 @@ import { forwardingAddress } from "@/lib/inbound/email.mjs";
 import { getUsers } from "@/lib/jobs";
 import { USER_COOKIE } from "@/lib/user";
 import { CopyButton } from "./CopyButton";
+import { HomeFilterForm } from "./HomeFilterForm";
 import { UserSwitcher } from "./UserSwitcher";
 
 const LABEL_TEXT: Record<string, string> = {
@@ -40,6 +41,22 @@ async function currentUser() {
   return { users, user: users.find((u) => u.id === cookieUser) ?? null };
 }
 
+// If the email sync tables can't be created (e.g. the database user lacks
+// permission), show this instead of the error page.
+function SyncNotReady({ users, user, title }: { users: Awaited<ReturnType<typeof getUsers>>; user: string; title: string }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">{title}</h1>
+        <UserSwitcher users={users} current={user} />
+      </div>
+      <p className="py-8 text-center text-sm text-gray-500">
+        Email sync isn&apos;t set up yet. Your roles and statuses still work as normal.
+      </p>
+    </div>
+  );
+}
+
 function PickUser({ users, title }: { users: Awaited<ReturnType<typeof getUsers>>; title: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
@@ -50,29 +67,42 @@ function PickUser({ users, title }: { users: Awaited<ReturnType<typeof getUsers>
   );
 }
 
-export async function SettingsSection() {
+export async function SettingsSection({ homeNotice }: { homeNotice?: "saved" | "empty" }) {
   const { users, user } = await currentUser();
   if (!user) return <PickUser users={users} title="Settings" />;
   const sql = db();
-  const [addressRow, events] = (await Promise.all([forwardingToken(sql, user.id), recentEvents(sql, user.id)])) as [
-    AddressRow,
-    RecentEvent[],
-  ];
+  let addressRow: AddressRow, events: RecentEvent[];
+  try {
+    [addressRow, events] = (await Promise.all([forwardingToken(sql, user.id), recentEvents(sql, user.id)])) as [
+      AddressRow,
+      RecentEvent[],
+    ];
+  } catch (err) {
+    console.error(`settings: email sync unavailable: ${err instanceof Error ? err.message : err}`);
+    return (
+      <div className="flex max-w-3xl flex-col gap-6">
+        <SettingsHeader users={users} user={user.id} />
+        <HomeFilterForm user={user} notice={homeNotice} />
+        <section className="flex flex-col gap-2">
+          <h2 className="font-medium">Email status sync</h2>
+          <p className="text-sm text-gray-500">Email sync isn&apos;t set up yet.</p>
+        </section>
+      </div>
+    );
+  }
   const address = forwardingAddress(addressRow.token);
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <UserSwitcher users={users} current={user.id} />
-      </div>
+      <SettingsHeader users={users} user={user.id} />
+      <HomeFilterForm user={user} notice={homeNotice} />
 
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Email status sync</h2>
         <p className="text-sm text-gray-600">
           Forward application emails to your address and your board updates itself: confirmations, assessments and
           interviews mark a role <b>Applied</b>, rejections <b>Rejected</b>, offers <b>Offer</b>. Statuses only move
-          forward. Emails it can&apos;t match to one of your roles wait in your <a className="underline" href="/inbox">Inbox</a>.
+          forward. Emails it can&apos;t match to one of your roles wait in <a className="underline" href="/inbox">Email matches</a>.
           Only the subject, date and sender&apos;s domain are kept, never the email itself.
         </p>
         <div className="flex flex-wrap items-center gap-2">
@@ -131,7 +161,7 @@ export async function SettingsSection() {
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Recent emails</h2>
         {events.length === 0 ? (
-          <p className="text-sm text-gray-500">None yet.</p>
+          <p className="text-sm text-gray-500">No forwarded emails yet. Once forwarding is set up, they&apos;ll show here.</p>
         ) : (
           <ul className="divide-y divide-gray-100 rounded border border-gray-200 text-sm">
             {events.map((e) => (
@@ -143,7 +173,7 @@ export async function SettingsSection() {
                   {e.state === "matched"
                     ? `${e.company ?? "?"}${e.new_status ? ` → ${e.new_status}` : " (no change)"}`
                     : e.state === "inbox"
-                      ? "in Inbox"
+                      ? "in Email matches"
                       : "dismissed"}
                 </span>
               </li>
@@ -155,25 +185,40 @@ export async function SettingsSection() {
   );
 }
 
+function SettingsHeader({ users, user }: { users: Awaited<ReturnType<typeof getUsers>>; user: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-lg font-semibold">Settings</h1>
+      <UserSwitcher users={users} current={user} />
+    </div>
+  );
+}
+
 export async function InboxSection({ error }: { error?: string }) {
   const { users, user } = await currentUser();
-  if (!user) return <PickUser users={users} title="Inbox" />;
+  if (!user) return <PickUser users={users} title="Email matches" />;
   const sql = db();
-  const [events, jobs] = (await Promise.all([inboxFor(sql, user.id), jobsForUser(sql, user.id)])) as [
-    InboxEvent[],
-    JobOption[],
-  ];
+  let events: InboxEvent[], jobs: JobOption[];
+  try {
+    [events, jobs] = (await Promise.all([inboxFor(sql, user.id), jobsForUser(sql, user.id)])) as [
+      InboxEvent[],
+      JobOption[],
+    ];
+  } catch (err) {
+    console.error(`inbox: email sync unavailable: ${err instanceof Error ? err.message : err}`);
+    return <SyncNotReady users={users} user={user.id} title="Email matches" />;
+  }
   const jobLabel = (company: string, role: string, id: number) => `${company} — ${role} · #${id}`;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Inbox</h1>
+        <h1 className="text-lg font-semibold">Email matches</h1>
         <UserSwitcher users={users} current={user.id} />
       </div>
       <p className="text-sm text-gray-600">
-        Forwarded emails that couldn&apos;t be matched to one of your roles automatically. Pick the role and what the
-        email means, then <i>Match</i>. Statuses still only move forward.
+        Forwarded emails we couldn&apos;t tie to one of your roles on our own: pick the role and what the email
+        means, then <i>Match</i>.
       </p>
       {error && (
         <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -181,7 +226,9 @@ export async function InboxSection({ error }: { error?: string }) {
         </p>
       )}
       {events.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-500">Nothing to match.</p>
+        <p className="py-8 text-center text-sm text-gray-500">
+          Nothing to sort out. Emails we can&apos;t match to a role on our own will show up here.
+        </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {events.map((e) => (

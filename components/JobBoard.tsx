@@ -6,12 +6,11 @@ import { updateStatus } from "@/app/actions";
 import { daysBetween } from "@/lib/dates";
 import { JOB_TYPES, STATUSES, type BoardRow, type JobType, type Status } from "@/lib/types";
 
-export type View = "all" | "closing";
-
 const TYPE_LABEL: Record<JobType, string> = {
   internship: "Internship",
   "part-time": "Part-time",
   fellowship: "Fellowship",
+  hackathon: "Hackathon",
 };
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -38,6 +37,8 @@ const DUE_LABEL = {
   all: "Any deadline",
 } as const;
 type Due = keyof typeof DUE_LABEL;
+
+const PAGE_SIZE = 100; // rows rendered at a time; "Show more" adds another page
 
 type Filters = {
   q: string;
@@ -112,11 +113,12 @@ function formatDate(iso: string, today: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", options);
 }
 
-export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: string; view: View }) {
+export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
   const query = useDeferredValue(filters.q);
   const [error, setError] = useState<string | null>(null);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [, startTransition] = useTransition();
   const [optimisticRows, setOptimisticStatus] = useOptimistic(
     rows,
@@ -124,14 +126,19 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
       current.map((row) => (row.id === change.id ? { ...row, status: change.status } : row)),
   );
 
-  const due: Due = view === "closing" ? "7" : filters.due;
-  const update = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  const due = filters.due;
+  const closingSoon = due === "7";
+  // Any filter change starts again from the first page.
+  const update = (patch: Partial<Filters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setLimit(PAGE_SIZE);
+  };
 
   // Keep filters in the URL so a refresh or shared link shows the same view.
   useEffect(() => {
-    const qs = filtersToQuery(view === "closing" ? { ...filters, due: DEFAULTS.due } : filters);
+    const qs = filtersToQuery(filters);
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [filters, view]);
+  }, [filters]);
 
   const domains = useMemo(() => uniqueSorted(rows.map((r) => r.domain)), [rows]);
   const regions = useMemo(() => uniqueSorted(rows.map((r) => r.region)), [rows]);
@@ -165,7 +172,7 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
     });
   }
 
-  const isFiltered = filtersToQuery({ ...filters, due: view === "closing" ? DEFAULTS.due : filters.due }) !== "";
+  const isFiltered = filtersToQuery(filters) !== "";
   const selectClass = "rounded border border-gray-300 bg-white px-2 py-1.5";
 
   return (
@@ -179,6 +186,17 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
           aria-label="Search"
           className="w-64 rounded border border-gray-300 px-2 py-1.5"
         />
+        <button
+          onClick={() => update({ due: closingSoon ? DEFAULTS.due : "7" })}
+          aria-pressed={closingSoon}
+          className={
+            closingSoon
+              ? "rounded-full border border-red-700 bg-red-50 px-3 py-1.5 font-medium text-red-800"
+              : "rounded-full border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+          }
+        >
+          Closing soon
+        </button>
         <select aria-label="Type" value={filters.type} onChange={(e) => update({ type: e.target.value })} className={selectClass}>
           <option value="">All types</option>
           {JOB_TYPES.map((t) => (
@@ -197,13 +215,11 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
-        {view === "all" && (
-          <select aria-label="Deadline" value={filters.due} onChange={(e) => update({ due: e.target.value as Due })} className={selectClass}>
-            {(Object.keys(DUE_LABEL) as Due[]).map((d) => (
-              <option key={d} value={d}>{DUE_LABEL[d]}</option>
-            ))}
-          </select>
-        )}
+        <select aria-label="Deadline" value={filters.due} onChange={(e) => update({ due: e.target.value as Due })} className={selectClass}>
+          {(Object.keys(DUE_LABEL) as Due[]).map((d) => (
+            <option key={d} value={d}>{DUE_LABEL[d]}</option>
+          ))}
+        </select>
         <select aria-label="Status" value={filters.status} onChange={(e) => update({ status: e.target.value })} className={selectClass}>
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
@@ -211,7 +227,7 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
           ))}
         </select>
         {isFiltered && (
-          <button onClick={() => setFilters(DEFAULTS)} className="px-2 py-1.5 text-gray-500 underline hover:text-gray-900">
+          <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 text-gray-500 underline hover:text-gray-900">
             Reset
           </button>
         )}
@@ -249,18 +265,31 @@ export function JobBoard({ rows, today, view }: { rows: BoardRow[]; today: strin
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {visible.map((row) => (
+            {visible.slice(0, limit).map((row) => (
               <JobRow key={row.id} row={row} today={today} onStatus={changeStatus} />
             ))}
           </tbody>
         </table>
+        {visible.length > limit && (
+          <div className="border-t border-gray-100 px-3 py-3 text-center text-sm">
+            <button
+              onClick={() => setLimit((n) => n + PAGE_SIZE)}
+              className="rounded border border-gray-300 px-3 py-1.5 hover:bg-gray-50"
+            >
+              Show {Math.min(PAGE_SIZE, visible.length - limit)} more
+            </button>
+            <span className="ml-2 text-gray-500">
+              Showing {limit} of {visible.length}
+            </span>
+          </div>
+        )}
         {visible.length === 0 && (
           <p className="px-3 py-10 text-center text-sm text-gray-500">
             {rows.length === 0
-              ? "No roles on your board yet. Roles show up here when they're posted to /api/jobs with your key."
-              : view === "closing"
+              ? "No roles here yet. New ones are added every morning, so check back tomorrow."
+              : closingSoon
                 ? "Nothing closing in the next 7 days."
-                : "No roles match these filters."}
+                : "No roles match these filters. Try Reset, or a shorter search."}
           </p>
         )}
       </div>
@@ -308,15 +337,19 @@ function JobRow({
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
       <td className="sticky right-0 bg-white px-3 py-2">
         <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-2">
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-700"
-          >
-            Apply ↗
-          </a>
-          {row.status === "todo" ? (
+          {href && (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              // Opening the posting counts as applying; the status dropdown can undo it.
+              onClick={() => row.status === "todo" && onStatus(row.id, "applied")}
+              className="whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-700"
+            >
+              Apply ↗
+            </a>
+          )}
+          {!href && row.status === "todo" ? (
             <button
               onClick={() => onStatus(row.id, "applied")}
               className="w-24 whitespace-nowrap rounded border border-gray-300 px-2.5 py-1 text-xs hover:bg-gray-50"

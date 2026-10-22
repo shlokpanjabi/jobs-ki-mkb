@@ -1,12 +1,14 @@
 # Apply Tracker
 
-A shared board of internships, part-time jobs and fellowships for Taran, Shlok and Muzzamil.
+A shared board of internships, part-time jobs, fellowships and hackathons for Taran, Shlok and Muzzamil.
 Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 
 - **All roles** (`/`): search, filter by type / domain / region / deadline / status, sort by deadline.
-- **Closing in 7 days** (`/closing`): the same board limited to deadlines from today through 7 days out.
+  The **Closing soon** chip limits it to deadlines from today through 7 days out (`/?due=7`; the old
+  `/closing` link redirects there).
 - **User switcher**: each person only sees roles marked eligible for them, with their own status.
-- **Apply** opens the posting; **Mark applied** sets your status in one click (or use the status dropdown).
+- **Apply** opens the posting and marks a To do role Applied (change it back with the status dropdown).
+  Roles without a working link get a **Mark applied** button instead.
 - **`POST /api/jobs`**: add or update a job with a per-user API key. Jobs are deduped by link.
 - **Email status sync**: forward application emails to your own address and statuses update
   themselves (see [Email status sync](#email-status-sync)).
@@ -88,7 +90,7 @@ curl -X POST https://<your-app>/api/jobs \
 | ---------- | -------- | ----- |
 | `company`  | yes      | |
 | `role`     | yes      | |
-| `type`     | yes      | `internship`, `part-time` or `fellowship` (case-insensitive; `part time` works too) |
+| `type`     | yes      | `internship`, `part-time`, `fellowship` or `hackathon` (case-insensitive; `part time` works too) |
 | `link`     | yes      | http(s) URL. Normalized for dedupe: `#fragment`, `utm_*` params and trailing `/` are dropped. |
 | `deadline` | no       | `YYYY-MM-DD`. Omit for rolling deadlines. |
 | `domain`, `location`, `region`, `source` | no | Free text. `domain` and `region` populate the filter dropdowns. |
@@ -153,9 +155,9 @@ closes; they stay on the board until their deadline passes or you mark them.
 their job pages (Gradcracker, Bright Network, Prosple, Internshala). Adding another such board is a
 config entry: its origin, search paths and job URL pattern.
 
-Search terms, page lists and repos are constants at the top of each module. The `jobs` table only
-allows `internship`, `part-time` and `fellowship`, so hackathons are stored as fellowships with
-domain `Hackathon`. Their deadline is the event's start date. UK locations are split into two regions,
+Search terms, page lists and repos are constants at the top of each module. Anything whose role or
+domain mentions a hackathon is saved with type `hackathon`. A hackathon's deadline is the event's
+start date. UK locations are split into two regions,
 `London` and `UK (outside London)`, so each is its own option in the board's region filter. Each run
 also relabels older UK jobs that were filed under `Europe`.
 
@@ -290,7 +292,7 @@ on the **Settings** page. Resend receives the mail and calls `POST /api/inbound-
 5. **Moves the status forward, never back:** `received` / `assessment_invite` / `interview` →
    Applied, `rejected` → Rejected, `offer` → Offer (To do < Applied < Rejected < Offer).
 
-Anything without one clear role and a confident label goes to the **Inbox** page, where you pick
+Anything without one clear role and a confident label goes to the **Email matches** page (`/inbox`), where you pick
 the role and the label by hand. Each email becomes a row in `status_events` with the subject, date,
 sender's domain, label and status change only. **Email bodies are never stored or logged.** Gmail's
 forwarding confirmation email is recognised too: its code and link appear on the Settings page.
@@ -310,7 +312,7 @@ in `RESEND_API_KEY` needs access to received emails.
 | -------- | -------- | ----------- |
 | `RESEND_WEBHOOK_SECRET` | yes | The webhook's signing secret (`whsec_…`) |
 | `RESEND_API_KEY` | yes | Resend API key (`re_…`), used to fetch each email's body |
-| `ANTHROPIC_API_KEY` | no | Enables the Claude fallback for emails the rules aren't sure about. Without it those go to the Inbox. |
+| `ANTHROPIC_API_KEY` | no | Enables the Claude fallback for emails the rules aren't sure about. Without it those go to Email matches. |
 | `INBOUND_DRY_RUN` | no | `1` to classify and match without writing |
 | `INBOUND_EMAIL_DOMAIN` | no | Receiving domain for the addresses. Defaults to `uestuuchue.resend.app`. |
 

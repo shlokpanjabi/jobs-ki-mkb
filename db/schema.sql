@@ -65,6 +65,9 @@ begin
   end if;
 end $$;
 
+-- Later additions (home filter columns, the "hackathon" type, dedupe_key) are
+-- in lib/app-schema.mjs, applied the same way as the email tables below.
+
 -- Email status sync tables (inbound_addresses, status_events) live in
 -- lib/inbound/schema.mjs: `npm run db:migrate` applies them after this file, and
 -- the app applies them on first use.
