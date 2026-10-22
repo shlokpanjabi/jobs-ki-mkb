@@ -337,15 +337,19 @@ function JobRow({
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
       <td className="sticky right-0 bg-white px-3 py-2">
         <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-2">
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-700"
-          >
-            Apply ↗
-          </a>
-          {row.status === "todo" ? (
+          {href && (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              // Opening the posting counts as applying; the status dropdown can undo it.
+              onClick={() => row.status === "todo" && onStatus(row.id, "applied")}
+              className="whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-700"
+            >
+              Apply ↗
+            </a>
+          )}
+          {!href && row.status === "todo" ? (
             <button
               onClick={() => onStatus(row.id, "applied")}
               className="w-24 whitespace-nowrap rounded border border-gray-300 px-2.5 py-1 text-xs hover:bg-gray-50"
