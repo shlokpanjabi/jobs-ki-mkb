@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { isValidISODate } from "./dates";
+import { normalizeLink } from "./links.mjs";
 import { JOB_TYPES, type BoardRow, type JobType, type Status, type User } from "./types";
 
 export type JobInput = {
@@ -22,22 +23,7 @@ function normalizeType(raw: string): JobType | null {
   return JOB_TYPES.includes(type as JobType) ? (type as JobType) : null;
 }
 
-// Canonical form used for dedupe: http(s) only, no #fragment, no utm_* params,
-// no trailing slash.
-export function normalizeLink(raw: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  url.hash = "";
-  const tracking = [...url.searchParams.keys()].filter((k) => /^utm_/i.test(k));
-  for (const key of tracking) url.searchParams.delete(key);
-  if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString();
-}
+export { normalizeLink };
 
 export function parseJobInput(body: unknown): { job: JobInput } | { errors: string[] } {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
