@@ -38,6 +38,8 @@ const DUE_LABEL = {
 } as const;
 type Due = keyof typeof DUE_LABEL;
 
+const PAGE_SIZE = 100; // rows rendered at a time; "Show more" adds another page
+
 type Filters = {
   q: string;
   type: string;
@@ -116,6 +118,7 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
   const [filters, setFilters] = useState(() => readFilters(searchParams));
   const query = useDeferredValue(filters.q);
   const [error, setError] = useState<string | null>(null);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [, startTransition] = useTransition();
   const [optimisticRows, setOptimisticStatus] = useOptimistic(
     rows,
@@ -125,7 +128,11 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
 
   const due = filters.due;
   const closingSoon = due === "7";
-  const update = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  // Any filter change starts again from the first page.
+  const update = (patch: Partial<Filters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setLimit(PAGE_SIZE);
+  };
 
   // Keep filters in the URL so a refresh or shared link shows the same view.
   useEffect(() => {
@@ -220,7 +227,7 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
           ))}
         </select>
         {isFiltered && (
-          <button onClick={() => setFilters(DEFAULTS)} className="px-2 py-1.5 text-gray-500 underline hover:text-gray-900">
+          <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 text-gray-500 underline hover:text-gray-900">
             Reset
           </button>
         )}
@@ -258,11 +265,24 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {visible.map((row) => (
+            {visible.slice(0, limit).map((row) => (
               <JobRow key={row.id} row={row} today={today} onStatus={changeStatus} />
             ))}
           </tbody>
         </table>
+        {visible.length > limit && (
+          <div className="border-t border-gray-100 px-3 py-3 text-center text-sm">
+            <button
+              onClick={() => setLimit((n) => n + PAGE_SIZE)}
+              className="rounded border border-gray-300 px-3 py-1.5 hover:bg-gray-50"
+            >
+              Show {Math.min(PAGE_SIZE, visible.length - limit)} more
+            </button>
+            <span className="ml-2 text-gray-500">
+              Showing {limit} of {visible.length}
+            </span>
+          </div>
+        )}
         {visible.length === 0 && (
           <p className="px-3 py-10 text-center text-sm text-gray-500">
             {rows.length === 0
