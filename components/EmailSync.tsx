@@ -40,6 +40,22 @@ async function currentUser() {
   return { users, user: users.find((u) => u.id === cookieUser) ?? null };
 }
 
+// If the email sync tables can't be created (e.g. the database user lacks
+// permission), show this instead of the error page.
+function SyncNotReady({ users, user, title }: { users: Awaited<ReturnType<typeof getUsers>>; user: string; title: string }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">{title}</h1>
+        <UserSwitcher users={users} current={user} />
+      </div>
+      <p className="py-8 text-center text-sm text-gray-500">
+        Email sync isn&apos;t set up yet. Your roles and statuses still work as normal.
+      </p>
+    </div>
+  );
+}
+
 function PickUser({ users, title }: { users: Awaited<ReturnType<typeof getUsers>>; title: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
@@ -54,10 +70,16 @@ export async function SettingsSection() {
   const { users, user } = await currentUser();
   if (!user) return <PickUser users={users} title="Settings" />;
   const sql = db();
-  const [addressRow, events] = (await Promise.all([forwardingToken(sql, user.id), recentEvents(sql, user.id)])) as [
-    AddressRow,
-    RecentEvent[],
-  ];
+  let addressRow: AddressRow, events: RecentEvent[];
+  try {
+    [addressRow, events] = (await Promise.all([forwardingToken(sql, user.id), recentEvents(sql, user.id)])) as [
+      AddressRow,
+      RecentEvent[],
+    ];
+  } catch (err) {
+    console.error(`settings: email sync unavailable: ${err instanceof Error ? err.message : err}`);
+    return <SyncNotReady users={users} user={user.id} title="Settings" />;
+  }
   const address = forwardingAddress(addressRow.token);
 
   return (
@@ -159,10 +181,16 @@ export async function InboxSection({ error }: { error?: string }) {
   const { users, user } = await currentUser();
   if (!user) return <PickUser users={users} title="Inbox" />;
   const sql = db();
-  const [events, jobs] = (await Promise.all([inboxFor(sql, user.id), jobsForUser(sql, user.id)])) as [
-    InboxEvent[],
-    JobOption[],
-  ];
+  let events: InboxEvent[], jobs: JobOption[];
+  try {
+    [events, jobs] = (await Promise.all([inboxFor(sql, user.id), jobsForUser(sql, user.id)])) as [
+      InboxEvent[],
+      JobOption[],
+    ];
+  } catch (err) {
+    console.error(`inbox: email sync unavailable: ${err instanceof Error ? err.message : err}`);
+    return <SyncNotReady users={users} user={user.id} title="Inbox" />;
+  }
   const jobLabel = (company: string, role: string, id: number) => `${company} — ${role} · #${id}`;
 
   return (
