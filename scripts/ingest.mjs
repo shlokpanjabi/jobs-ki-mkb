@@ -3,7 +3,7 @@
 //
 //   npm run ingest                              # all sources
 //   npm run ingest -- --dry-run                 # print what would be saved, write nothing
-//   npm run ingest -- --source=gradcracker,luma # only these sources
+//   npm run ingest -- --source=simplify,luma    # only these sources
 import nextEnv from "@next/env";
 import { todayISO } from "../lib/ingest/normalise.mjs";
 import { audienceFor, parseProfiles } from "../lib/ingest/profiles.mjs";
