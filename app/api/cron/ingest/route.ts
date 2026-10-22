@@ -1,12 +1,15 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { formatSummary, ingestConfigFromEnv, runIngest } from "@/lib/ingest/run.mjs";
+import { db } from "@/lib/db";
+import { formatSummary, runIngest, selectSources } from "@/lib/ingest/run.mjs";
+import { createStore, resolveUsers } from "@/lib/ingest/store.mjs";
 
 // Sources are rate-limited, so a full run takes a minute or two.
 export const maxDuration = 300;
 
 // GET /api/cron/ingest: run by Vercel Cron daily (see vercel.json), which sends
-// `Authorization: Bearer $CRON_SECRET`. `?dryRun=1` returns the jobs it would
-// post without posting them. Never log the request or its headers.
+// `Authorization: Bearer $CRON_SECRET`. Saves straight to the database.
+// `?dryRun=1` returns the jobs it would save without saving them.
+// Never log the request or its headers.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -17,16 +20,16 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const url = new URL(request.url);
-  const dryRun = ["1", "true"].includes(url.searchParams.get("dryRun") ?? "");
+  const dryRun = ["1", "true"].includes(new URL(request.url).searchParams.get("dryRun") ?? "");
   try {
-    // Posts to this deployment's own /api/jobs unless INGEST_BASE_URL says otherwise.
-    const config = ingestConfigFromEnv({ baseUrl: url.origin });
-    const summary = await runIngest({ ...config, dryRun });
+    const sources = selectSources(process.env.INGEST_SOURCES);
+    const save = dryRun ? undefined : createStore(db(), await resolveUsers(db()));
+    const summary = await runIngest({ sources, dryRun, save });
     console.log(`ingest summary\n${formatSummary(summary)}`);
     return Response.json(summary, { status: summary.ok ? 200 : 502 });
   } catch (err) {
-    // Config errors only (missing env vars, unknown source names); no secrets.
+    // Setup errors (missing DATABASE_URL, unknown source or user names). Message
+    // only: driver errors can carry query parameters.
     const message = err instanceof Error ? err.message : "unknown error";
     console.error(`GET /api/cron/ingest failed: ${message}`);
     return Response.json({ error: "Ingest failed to start", details: message }, { status: 500 });

@@ -9,7 +9,7 @@ Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 - **Apply** opens the posting; **Mark applied** sets your status in one click (or use the status dropdown).
 - **`POST /api/jobs`**: add or update a job with a per-user API key. Jobs are deduped by link.
 - **Nightly ingestion**: a daily cron pulls listings from Gradcracker, Indeed UK and Luma hackathons
-  and posts them through `/api/jobs` (see [Job ingestion](#job-ingestion)).
+  straight into the database for everyone (see [Job ingestion](#job-ingestion)).
 
 ## How it fits together
 
@@ -51,8 +51,7 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `DATABASE_URL`   | yes      | Postgres connection string. On Supabase use the **Transaction pooler** string (port `6543`) from **Connect**, and append `?sslmode=require`. |
 | `BOARD_PASSWORD` | no       | If set, the board UI asks for this password (HTTP Basic auth, any username). `/api/jobs` is unaffected. Recommended for a public deployment. |
 | `APP_TIMEZONE`   | no       | IANA timezone (e.g. `America/New_York`, `Asia/Kolkata`) used to decide what "today" is for deadlines. Defaults to `UTC`. |
-| `INGEST_API_KEY` | for ingestion | API key(s) the ingester posts with. Comma-separate several keys to make each job eligible for several people. |
-| `INGEST_BASE_URL` | for `npm run ingest` | Where the script posts, e.g. `http://localhost:3000`. The cron route defaults to its own deployment. |
+| `INGEST_USERS`   | no       | Comma-separated user ids who see ingested jobs, e.g. `shlok,taran`. Defaults to every user. |
 | `INGEST_SOURCES` | no       | Comma-separated subset of `gradcracker`, `indeed-uk`, `luma`. Defaults to all three. |
 | `CRON_SECRET`    | for the cron | Secret Vercel Cron sends as `Authorization: Bearer <CRON_SECRET>`. Without it `/api/cron/ingest` answers `503`. |
 
@@ -118,7 +117,7 @@ last used.
 ## Job ingestion
 
 `lib/ingest/` has one module per source. Each reads public listing pages (no logins) and returns
-jobs in the `POST /api/jobs` shape (`company, role, type, domain, location, region, deadline,
+jobs in the same shape as `POST /api/jobs` (`company, role, type, domain, location, region, deadline,
 source, link`):
 
 | Source        | Module            | What it reads | Type |
@@ -134,18 +133,20 @@ UK locations get region `Europe`, like the seed data (`UK_REGION` in `normalise.
 
 `run.mjs` runs all sources at the same time, normalises each job (cleans the text, skips rows
 with missing fields or a past deadline, guesses `domain` from the title when the source has none),
-drops links already seen in this run, and POSTs the rest to `/api/jobs`. The API does the
-link-normalised dedupe against the database, so re-running is safe. A source that throws is
-reported and skipped; the others still run.
+drops links already seen in this run, and upserts the rest straight into Postgres (`store.mjs`) by
+normalised link, with the same rules as `POST /api/jobs`: an existing job's details are refreshed,
+and nobody's status is touched. Every job is marked eligible for every user (or just
+`INGEST_USERS`), so no API key is needed. Re-running is safe. A source that throws is reported and
+skipped; the others still run.
 
 Each source's counts are logged:
 
 | Column    | Meaning |
 | --------- | ------- |
 | `found`   | Listings the source returned |
-| `new`     | Jobs `/api/jobs` created (`201`) |
-| `skipped` | Already in the tracker (`200`), already seen in this run, missing fields, or deadline passed |
-| `failed`  | Pages that couldn't be fetched, or POSTs that were rejected. A source that failed entirely shows `ERROR: …` |
+| `new`     | Jobs that weren't in the tracker yet |
+| `skipped` | Already in the tracker (details refreshed), already seen in this run, missing fields, or deadline passed |
+| `failed`  | Pages that couldn't be fetched, or jobs the database rejected. A source that failed entirely shows `ERROR: …` |
 
 **Being polite.** Requests send `User-Agent: ApplyTrackerBot/1.0 (+repo URL)` (override with
 `INGEST_USER_AGENT`). `robots.txt` is checked before every request: a missing file (`404`) allows
@@ -160,29 +161,26 @@ if longer (capped at 30 s). A `429`/`503` is retried once after `Retry-After`.
 ### Running it
 
 ```bash
-npm run ingest -- --dry-run                  # fetch and print what would be posted; writes nothing
-npm run ingest                               # post to INGEST_BASE_URL with INGEST_API_KEY
+npm run ingest -- --dry-run                  # fetch and print what would be saved; writes nothing
+npm run ingest                               # save to the DATABASE_URL database
 npm run ingest -- --source=gradcracker,luma  # only some sources
 npm test                                     # unit tests for the parsers and the pipeline
+TEST_DATABASE_URL=postgres://… npm test      # also test the database writes (use a scratch database)
 ```
 
-The script exits with `1` if any source failed or any POST was rejected, so it can run from
-another scheduler as well.
-
-**Which key?** Jobs are eligible only for the owner(s) of the key(s) they're posted with. Use your
-own key from `npm run keys`, or comma-separate several people's keys in `INGEST_API_KEY` so each
-job shows up for all of them.
+The script exits with `1` if any source failed or any job couldn't be saved. If 5 saves fail in a
+row it stops, assuming the database is down.
 
 ### Nightly cron on Vercel
 
 `vercel.json` schedules `GET /api/cron/ingest` daily at 05:00 UTC. Vercel sends
 `Authorization: Bearer $CRON_SECRET`; anything else gets `401`. The route runs the same pipeline
-and posts to the deployment's own `/api/jobs` (or `INGEST_BASE_URL` if set). It returns the counts
-as JSON, with `200` when everything worked and `502` when a source or POST failed. Its log has the
+and writes with the app's own `DATABASE_URL`. It returns the counts as JSON, with `200` when
+everything worked and `502` when a source failed or a job couldn't be saved. Its log has the
 same table as the script.
 
-1. In Project → Settings → Environment Variables add `CRON_SECRET` (e.g. `openssl rand -hex 32`)
-   and `INGEST_API_KEY`, and optionally `INGEST_SOURCES`. Redeploy.
+1. In Project → Settings → Environment Variables add `CRON_SECRET` (e.g. `openssl rand -hex 32`),
+   and optionally `INGEST_SOURCES` / `INGEST_USERS`. Redeploy. That's all: it then runs every night.
 2. Cron jobs only run on the production deployment. Vercel's Hobby plan runs them once a day at
    some point within the scheduled hour.
 3. To test by hand:
@@ -226,5 +224,5 @@ because of the rate limits.
 | `npm run ingest`     | Fetch jobs from the sources and post them (`-- --dry-run` to only print) |
 | `npm test`           | Ingestion unit tests (`node --test`) |
 
-Scripts read `DATABASE_URL` (and the `INGEST_*` variables) from `.env.local` / `.env` the same
+Scripts read `DATABASE_URL` (and `INGEST_SOURCES` / `INGEST_USERS`) from `.env.local` / `.env` the same
 way Next.js does.

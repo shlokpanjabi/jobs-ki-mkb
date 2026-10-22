@@ -1,11 +1,13 @@
-// Fetches jobs from every source in lib/ingest/ and POSTs them to /api/jobs.
-// Reads INGEST_BASE_URL and INGEST_API_KEY from .env.local like Next does.
+// Fetches jobs from every source in lib/ingest/ and upserts them into the
+// database (DATABASE_URL, loaded from .env.local like Next does).
 //
 //   npm run ingest                              # all sources
-//   npm run ingest -- --dry-run                 # print what would be posted, write nothing
+//   npm run ingest -- --dry-run                 # print what would be saved, write nothing
 //   npm run ingest -- --source=gradcracker,luma # only these sources
 import nextEnv from "@next/env";
-import { formatSummary, ingestConfigFromEnv, runIngest } from "../lib/ingest/run.mjs";
+import { formatSummary, runIngest, selectSources } from "../lib/ingest/run.mjs";
+import { createStore, resolveUsers } from "../lib/ingest/store.mjs";
+import { connect } from "./connect.mjs";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error: console.error });
 
@@ -19,12 +21,21 @@ if (unknownFlags.length) {
   process.exit(1);
 }
 
+const sql = dryRun ? null : connect();
 try {
-  const config = ingestConfigFromEnv({ sources: sourceArg });
-  const summary = await runIngest({ ...config, dryRun });
+  const sources = selectSources(sourceArg ?? process.env.INGEST_SOURCES);
+  let save;
+  if (sql) {
+    const users = await resolveUsers(sql);
+    console.log(`Saving jobs as eligible for: ${users.join(", ")}`);
+    save = createStore(sql, users);
+  }
+  const summary = await runIngest({ sources, dryRun, save });
   console.log(`\n${formatSummary(summary)}`);
   if (!summary.ok) process.exitCode = 1;
 } catch (err) {
   console.error(`Failed: ${err instanceof Error ? err.message : err}`);
   process.exitCode = 1;
+} finally {
+  await sql?.end();
 }
