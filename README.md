@@ -292,7 +292,7 @@ on the **Settings** page. Resend receives the mail and calls `POST /api/inbound-
 5. **Moves the status forward, never back:** `received` / `assessment_invite` / `interview` →
    Applied, `rejected` → Rejected, `offer` → Offer (To do < Applied < Rejected < Offer).
 
-Anything without one clear role and a confident label goes to the **Inbox** page, where you pick
+Anything without one clear role and a confident label goes to the **Email matches** page (`/inbox`), where you pick
 the role and the label by hand. Each email becomes a row in `status_events` with the subject, date,
 sender's domain, label and status change only. **Email bodies are never stored or logged.** Gmail's
 forwarding confirmation email is recognised too: its code and link appear on the Settings page.
@@ -312,7 +312,7 @@ in `RESEND_API_KEY` needs access to received emails.
 | -------- | -------- | ----------- |
 | `RESEND_WEBHOOK_SECRET` | yes | The webhook's signing secret (`whsec_…`) |
 | `RESEND_API_KEY` | yes | Resend API key (`re_…`), used to fetch each email's body |
-| `ANTHROPIC_API_KEY` | no | Enables the Claude fallback for emails the rules aren't sure about. Without it those go to the Inbox. |
+| `ANTHROPIC_API_KEY` | no | Enables the Claude fallback for emails the rules aren't sure about. Without it those go to Email matches. |
 | `INBOUND_DRY_RUN` | no | `1` to classify and match without writing |
 | `INBOUND_EMAIL_DOMAIN` | no | Receiving domain for the addresses. Defaults to `uestuuchue.resend.app`. |
 

@@ -286,10 +286,10 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
         {visible.length === 0 && (
           <p className="px-3 py-10 text-center text-sm text-gray-500">
             {rows.length === 0
-              ? "No roles on your board yet. Roles show up here when they're posted to /api/jobs with your key."
+              ? "No roles here yet. New ones are added every morning, so check back tomorrow."
               : closingSoon
                 ? "Nothing closing in the next 7 days."
-                : "No roles match these filters."}
+                : "No roles match these filters. Try Reset, or a shorter search."}
           </p>
         )}
       </div>

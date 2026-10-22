@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EmailSyncFallback, InboxSection } from "@/components/EmailSync";
 
-export const metadata: Metadata = { title: "Inbox · Apply Tracker" };
+export const metadata: Metadata = { title: "Email matches · Apply Tracker" };
 
 export default function InboxPage({ searchParams }: PageProps<"/inbox">) {
   return (
