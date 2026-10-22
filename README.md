@@ -8,6 +8,8 @@ Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 - **User switcher**: each person only sees roles marked eligible for them, with their own status.
 - **Apply** opens the posting; **Mark applied** sets your status in one click (or use the status dropdown).
 - **`POST /api/jobs`**: add or update a job with a per-user API key. Jobs are deduped by link.
+- **Email status sync**: forward application emails to your own address and statuses update
+  themselves (see [Email status sync](#email-status-sync)).
 - **Nightly ingestion**: a daily cron pulls listings from ten sources (Simplify, speedyapply, Gradcracker,
   Bright Network, Prosple, Indeed UK, Internshala, Luma, a quant list and your own spreadsheets)
   straight into the database for everyone (see [Job ingestion](#job-ingestion)).
@@ -265,6 +267,52 @@ same table as the script.
 it instead. The route allows up to 300 s (`maxDuration`); a normal run takes a minute or two
 because of the rate limits. Writes are batched, so saving about 3,500 jobs takes a couple of dozen
 database round trips.
+
+## Email status sync
+
+Each user forwards their application emails (a Gmail filter does it automatically) to a personal
+address, `track+<token>@uestuuchue.resend.app`, shown with a copy button and a 3-step Gmail guide
+on the **Settings** page. Resend receives the mail and calls `POST /api/inbound-email`, which:
+
+1. **Verifies** the Svix signature (`svix-id`, `svix-timestamp`, `svix-signature`) against
+   `RESEND_WEBHOOK_SECRET` with Resend's SDK. Bad or replayed signatures get `401`.
+2. **Fetches** the email from Resend's Received Emails API (`RESEND_API_KEY`), since the webhook
+   only carries metadata. The token in the recipient address (`received_for`, falling back to
+   To/Cc and headers) says whose email it is.
+3. **Classifies** it as `received`, `assessment_invite`, `interview`, `offer` or `rejected`. Rules
+   on the sender (HackerRank, HireVue, Codility and other assessment platforms) and on subject/body
+   phrases decide first. Only when they're unsure (no signal, or conflicting ones like
+   "unfortunately we need to reschedule your interview") is Claude asked, if `ANTHROPIC_API_KEY` is
+   set. That call sends the subject, the sender's domain and the first 4,000 characters of the body.
+4. **Matches** it to one of that user's roles by company: the sender's domain, then the sender's
+   name (for ATS senders like Greenhouse), then the subject and body. With several roles at that
+   company, the one whose title the email mentions wins, then the one already past "To do".
+5. **Moves the status forward, never back:** `received` / `assessment_invite` / `interview` →
+   Applied, `rejected` → Rejected, `offer` → Offer (To do < Applied < Rejected < Offer).
+
+Anything without one clear role and a confident label goes to the **Inbox** page, where you pick
+the role and the label by hand. Each email becomes a row in `status_events` with the subject, date,
+sender's domain, label and status change only. **Email bodies are never stored or logged.** Gmail's
+forwarding confirmation email is recognised too: its code and link appear on the Settings page.
+
+**Dry run:** set `INBOUND_DRY_RUN=1`, or add `?dryRun=1` to the webhook URL. Emails are classified
+and matched, the decision is returned and logged, and nothing is written. (Gmail's confirmation
+code is still saved, so setup works.)
+
+The tables (`inbound_addresses`, `status_events`, in `lib/inbound/schema.mjs`) are created by
+`npm run db:migrate`, and by the app itself the first time it needs them.
+
+**Resend setup:** in Resend, add a webhook pointing at `https://<your-app>/api/inbound-email` for
+the `email.received` event, and copy its signing secret into `RESEND_WEBHOOK_SECRET`. The API key
+in `RESEND_API_KEY` needs access to received emails.
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `RESEND_WEBHOOK_SECRET` | yes | The webhook's signing secret (`whsec_…`) |
+| `RESEND_API_KEY` | yes | Resend API key (`re_…`), used to fetch each email's body |
+| `ANTHROPIC_API_KEY` | no | Enables the Claude fallback for emails the rules aren't sure about. Without it those go to the Inbox. |
+| `INBOUND_DRY_RUN` | no | `1` to classify and match without writing |
+| `INBOUND_EMAIL_DOMAIN` | no | Receiving domain for the addresses. Defaults to `uestuuchue.resend.app`. |
 
 ## Deploying to Vercel
 
