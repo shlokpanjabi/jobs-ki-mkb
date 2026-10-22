@@ -153,8 +153,9 @@ config entry: its origin, search paths and job URL pattern.
 
 Search terms, page lists and repos are constants at the top of each module. The `jobs` table only
 allows `internship`, `part-time` and `fellowship`, so hackathons are stored as fellowships with
-domain `Hackathon`. Their deadline is the event's start date. UK locations get region `Europe`,
-like the seed data (`UK_REGION` in `normalise.mjs` changes that).
+domain `Hackathon`. Their deadline is the event's start date. UK locations are split into two regions,
+`London` and `UK (outside London)`, so each is its own option in the board's region filter. Each run
+also relabels older UK jobs that were filed under `Europe`.
 
 **Your spreadsheets.** Put one or more CSV URLs in `INGEST_SHEETS`, comma-separated. A Google Sheet
 works if it's shared as *Anyone with the link can view*; paste its normal `…/edit#gid=…` URL. Columns

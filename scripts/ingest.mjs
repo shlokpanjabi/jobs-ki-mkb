@@ -8,7 +8,7 @@ import nextEnv from "@next/env";
 import { todayISO } from "../lib/ingest/normalise.mjs";
 import { audienceFor, parseProfiles } from "../lib/ingest/profiles.mjs";
 import { formatSummary, runIngest, selectSources } from "../lib/ingest/run.mjs";
-import { createStore, resolveUsers } from "../lib/ingest/store.mjs";
+import { createStore, relabelUkRegions, resolveUsers } from "../lib/ingest/store.mjs";
 import { connect } from "./connect.mjs";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error: console.error });
@@ -37,6 +37,10 @@ try {
   const save = sql ? createStore(sql, users) : undefined;
   const summary = await runIngest({ sources, dryRun, save, audience, today });
   console.log(`\n${formatSummary(summary)}`);
+  if (sql) {
+    const relabelled = await relabelUkRegions(sql);
+    if (relabelled) console.log(`Relabelled ${relabelled} older UK job(s) from "Europe" to London / UK (outside London)`);
+  }
   if (!summary.ok) process.exitCode = 1;
 } catch (err) {
   console.error(`Failed: ${err instanceof Error ? err.message : err}`);
