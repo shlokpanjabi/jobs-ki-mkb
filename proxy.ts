@@ -5,7 +5,7 @@ export function proxy(request: NextRequest) {
   if (boardAuthorized(request.headers.get("authorization"))) return NextResponse.next();
   return new NextResponse("Authentication required", {
     status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Apply Tracker", charset="UTF-8"' },
+    headers: { "WWW-Authenticate": 'Basic realm="Jobs ki mkb", charset="UTF-8"' },
   });
 }
 

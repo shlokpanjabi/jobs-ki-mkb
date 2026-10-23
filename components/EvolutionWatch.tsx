@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Pet, type Form, type Species } from "./Pet";
 
 const KEY = (userId: string) => `apply-tracker:pet-form:${userId}`;
-const CONFETTI = ["#FF9F45", "#FFD15C", "#8FD16F", "#B9A2F0", "#E2556B", "#FFC08A"];
+const CONFETTI = ["#FF4F1A", "#111110", "#E9E7E1", "#2F8A4B", "#33527F"];
 
 // Celebrates an evolution the first time you see your board after it happens.
 // The last form you saw is kept in this browser; a first visit only records it.
@@ -56,7 +56,7 @@ export function EvolutionWatch({ userId, species, form, names }: {
       role="dialog"
       aria-modal="true"
       aria-label={`${names[from]} evolved into ${names[form]}`}
-      className="fixed inset-0 z-50 grid place-items-center bg-cocoa-900/40 p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 p-4"
       onClick={close}
     >
       {Array.from({ length: 36 }, (_, i) => (
@@ -84,12 +84,12 @@ export function EvolutionWatch({ userId, species, form, names }: {
             </div>
           )}
         </div>
-        <p className="mt-2 font-display text-lg font-semibold text-cocoa-700">
+        <p className="mt-2 font-display text-lg text-ink-700">
           {revealed ? `${names[from]} evolved into ${names[form]}!` : `What? ${names[from]} is evolving!`}
         </p>
-        <p className="mt-1 text-sm font-semibold text-cocoa-500">All those applications are paying off.</p>
-        <button onClick={close} className="btn-3d btn-carrot mt-4 px-6 py-2 text-lg">
-          Yay!
+        <p className="mt-1 text-sm text-ink-500">All those applications are paying off.</p>
+        <button onClick={close} className="btn-3d btn-cocoa mt-5 px-6 py-2">
+          Continue
         </button>
       </div>
     </div>
@@ -98,13 +98,8 @@ export function EvolutionWatch({ userId, species, form, names }: {
 
 function Ribbon({ text }: { text: string }) {
   return (
-    <div className="absolute -top-5 left-1/2 w-[85%] -translate-x-1/2">
-      <svg viewBox="0 0 300 54" className="w-full" aria-hidden>
-        <path d="M14 14 H0 L10 30 L0 46 H34 V14 Z" fill="#D9A21F" />
-        <path d="M286 14 H300 L290 30 L300 46 H266 V14 Z" fill="#D9A21F" />
-        <rect x="22" y="4" width="256" height="40" rx="8" fill="#FFD15C" stroke="#B9851A" strokeWidth="3" />
-      </svg>
-      <span className="title-outline absolute inset-0 -top-1 grid place-items-center text-2xl">{text}</span>
+    <div className="label-mono absolute left-0 right-0 top-0 border-b border-ink-900 py-2 text-center text-ink-900">
+      {text}
     </div>
   );
 }

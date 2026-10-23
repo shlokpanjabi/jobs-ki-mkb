@@ -1,4 +1,4 @@
--- Apply Tracker schema. Safe to run more than once.
+-- Jobs ki mkb schema. Safe to run more than once.
 
 create table if not exists users (
   id   text primary key check (id ~ '^[a-z][a-z0-9_-]{0,31}$'),

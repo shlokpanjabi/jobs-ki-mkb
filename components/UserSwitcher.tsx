@@ -5,7 +5,7 @@ import type { User } from "@/lib/types";
 export function UserSwitcher({ users, current }: { users: User[]; current: string | null }) {
   return (
     <form action={switchUser} className="flex flex-wrap items-center gap-1.5 text-sm">
-      {current && <span className="mr-1 font-semibold text-cocoa-500">Viewing as</span>}
+      {current && <span className="mr-1 text-ink-500">Viewing as</span>}
       {users.map((user) => (
         <button
           key={user.id}

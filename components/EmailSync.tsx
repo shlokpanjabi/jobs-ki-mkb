@@ -58,7 +58,7 @@ function GmailButton({ account, e }: { account: string | null; e: EventRow }) {
   const link = gmailLink(account, { messageId: e.source_message_id, senderDomain: e.sender_domain, subject: e.subject });
   if (!link) {
     return account ? null : (
-      <a href="/settings#gmail" className="font-semibold text-carrot-700 underline">Add your Gmail to open it</a>
+      <a href="/settings#gmail" className="font-semibold text-accent-700 underline">Add your Gmail to open it</a>
     );
   }
   return (
@@ -86,10 +86,10 @@ function SyncNotReady({ users, user, title }: { users: Awaited<ReturnType<typeof
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="title-outline text-3xl">{title}</h1>
+        <h1 className="title-outline text-5xl sm:text-7xl">{title}</h1>
         <UserSwitcher users={users} current={user} />
       </div>
-      <p className="py-8 text-center font-semibold text-cocoa-500">
+      <p className="py-8 text-center text-ink-500">
         Email sync isn&apos;t set up yet. Your roles and statuses still work as normal.
       </p>
     </div>
@@ -99,8 +99,8 @@ function SyncNotReady({ users, user, title }: { users: Awaited<ReturnType<typeof
 function PickUser({ users, title }: { users: Awaited<ReturnType<typeof getUsers>>; title: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
-      <h1 className="title-outline text-3xl">{title}</h1>
-      <p className="text-sm font-semibold text-cocoa-500">Pick your name first.</p>
+      <h1 className="title-outline text-5xl sm:text-7xl">{title}</h1>
+      <p className="text-sm text-ink-500">Pick your name first.</p>
       <UserSwitcher users={users} current={null} />
     </div>
   );
@@ -126,8 +126,8 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
         <SettingsHeader users={users} user={user.id} />
         <HomeFilterForm user={user} notice={homeNotice} />
         <section className="card-plain flex flex-col gap-2 p-4">
-          <h2 className="font-display font-semibold text-cocoa-900">Email status sync</h2>
-          <p className="text-sm font-semibold text-cocoa-500">Email sync isn&apos;t set up yet.</p>
+          <h2 className="font-display font-semibold text-ink-900">Email status sync</h2>
+          <p className="text-sm text-ink-500">Email sync isn&apos;t set up yet.</p>
         </section>
       </div>
     );
@@ -140,25 +140,25 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
       <HomeFilterForm user={user} notice={homeNotice} />
 
       <section className="card-plain flex flex-col gap-2 p-4">
-        <h2 className="font-display font-semibold text-cocoa-900">Email status sync</h2>
-        <p className="text-sm font-semibold text-cocoa-500">
+        <h2 className="font-display font-semibold text-ink-900">Email status sync</h2>
+        <p className="text-sm text-ink-500">
           Forward application emails to your address and your board updates itself: a confirmation marks a role{" "}
           <b>Applied</b>; an assessment or interview invitation shows <b>Assessment invited</b> or{" "}
           <b>Interview invited</b> and adds a to-do (like <i>Complete assessment</i>) under the role&apos;s status;
           rejections and offers set <b>Rejected</b> or <b>Offer</b>. Progress only moves forward, and an email never
           undoes a change you made yourself after it was sent. Emails it can&apos;t match to one of your roles wait in{" "}
-          <a className="font-semibold text-carrot-700 underline" href="/inbox">Email matches</a>. Only the subject, date, sender&apos;s domain, the
+          <a className="font-semibold text-accent-700 underline" href="/inbox">Email matches</a>. Only the subject, date, sender&apos;s domain, the
           email&apos;s ID and any deadline it states are kept, never the email itself.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <code className="rounded-xl border-2 border-peach-200 bg-cream-50 px-2 py-1 text-sm font-bold select-all">{address}</code>
+          <code className="rounded-sm border border-line-200 bg-paper-50 px-2 py-1 text-sm font-medium select-all">{address}</code>
           <CopyButton text={address} />
         </div>
       </section>
 
       <section id="gmail" className="card-plain flex flex-col gap-2 p-4">
-        <h2 className="font-display font-semibold text-cocoa-900">Your Gmail address</h2>
-        <p className="text-sm font-semibold text-cocoa-500">
+        <h2 className="font-display font-semibold text-ink-900">Your Gmail address</h2>
+        <p className="text-sm text-ink-500">
           The address you forward from, so <i>Open in Gmail</i> opens the right account. Assessment and booking links
           stay in the original email; the tracker never stores them.
         </p>
@@ -172,18 +172,18 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
             className="field w-72 max-w-full px-2 py-1"
           />
           <button className="btn-3d btn-carrot px-3 py-1">Save</button>
-          {gmailNotice === "saved" && <span className="font-semibold text-leaf-700">Saved.</span>}
-          {gmailNotice === "cleared" && <span className="font-semibold text-cocoa-500">Cleared.</span>}
-          {gmailNotice === "invalid" && <span className="font-semibold text-berry-500">That doesn&apos;t look like an email address.</span>}
+          {gmailNotice === "saved" && <span className="font-semibold text-ok-700">Saved.</span>}
+          {gmailNotice === "cleared" && <span className="text-ink-500">Cleared.</span>}
+          {gmailNotice === "invalid" && <span className="font-semibold text-alert-500">That doesn&apos;t look like an email address.</span>}
         </form>
       </section>
 
       <section className="card-plain flex flex-col gap-3 p-4">
-        <h2 className="font-display font-semibold text-cocoa-900">Set it up in Gmail (once)</h2>
-        <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm font-semibold text-cocoa-700">
+        <h2 className="font-display font-semibold text-ink-900">Set it up in Gmail (once)</h2>
+        <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-ink-700">
           <li>
             <b>Create a filter.</b> In Gmail, click the filter icon at the right of the search bar. In <i>Has the
-            words</i>, paste <code className="rounded-md bg-cream-100 px-1 font-bold">{FILTER_QUERY}</code>
+            words</i>, paste <code className="rounded-md bg-paper-100 px-1 font-medium">{FILTER_QUERY}</code>
             <CopyButton text={FILTER_QUERY} />, then click <i>Create filter</i>.
           </li>
           <li>
@@ -194,7 +194,7 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
           <li>
             <b>Confirm Gmail&apos;s forwarding verification email.</b> It arrives here, not in your inbox:
             {addressRow.gmail_confirm_code || addressRow.gmail_confirm_url ? (
-              <div className="mt-2 rounded-2xl border-2 border-leaf-400 bg-leaf-100 p-3">
+              <div className="mt-2 rounded-sm border border-ok-400 bg-ok-100 p-3">
                 <div>
                   Gmail&apos;s confirmation arrived
                   {addressRow.gmail_confirm_at ? ` ${formatDate(new Date(addressRow.gmail_confirm_at))}` : ""}.
@@ -206,13 +206,13 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
                   </div>
                 )}
                 {addressRow.gmail_confirm_url && (
-                  <a className="font-semibold text-carrot-700 underline" href={addressRow.gmail_confirm_url} target="_blank" rel="noreferrer">
+                  <a className="font-semibold text-accent-700 underline" href={addressRow.gmail_confirm_url} target="_blank" rel="noreferrer">
                     open the confirmation link
                   </a>
                 )}
               </div>
             ) : (
-              <div className="mt-2 font-semibold text-cocoa-500">
+              <div className="mt-2 text-ink-500">
                 Waiting for it. Refresh this page a minute after adding the forwarding address.
               </div>
             )}
@@ -226,17 +226,17 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
       </section>
 
       <section className="card-plain flex flex-col gap-2 p-4">
-        <h2 className="font-display font-semibold text-cocoa-900">Recent emails</h2>
+        <h2 className="font-display font-semibold text-ink-900">Recent emails</h2>
         {events.length === 0 ? (
-          <p className="text-sm font-semibold text-cocoa-500">No forwarded emails yet. Once forwarding is set up, they&apos;ll show here.</p>
+          <p className="text-sm text-ink-500">No forwarded emails yet. Once forwarding is set up, they&apos;ll show here.</p>
         ) : (
-          <ul className="card-plain divide-y-2 divide-cream-100 overflow-hidden text-sm">
+          <ul className="card-plain divide-y divide-paper-100 overflow-hidden text-sm">
             {events.map((e) => (
               <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2">
-                <span className="font-semibold text-cocoa-500">{formatDate(new Date(e.received_at))}</span>
-                <span className="font-display font-semibold text-cocoa-900">{LABEL_TEXT[e.classification] ?? e.classification}</span>
+                <span className="text-ink-500">{formatDate(new Date(e.received_at))}</span>
+                <span className="font-display font-semibold text-ink-900">{LABEL_TEXT[e.classification] ?? e.classification}</span>
                 <span className="min-w-0 flex-1 truncate">{e.subject || "(no subject)"}</span>
-                <span className={e.effect === "conflict" ? "font-semibold text-berry-500" : "font-semibold text-cocoa-500"}>{eventOutcome(e)}</span>
+                <span className={e.effect === "conflict" ? "font-semibold text-alert-500" : "text-ink-500"}>{eventOutcome(e)}</span>
                 <GmailButton account={addressRow.gmail_account} e={e} />
               </li>
             ))}
@@ -250,7 +250,7 @@ export async function SettingsSection({ homeNotice, gmailNotice }: {
 function SettingsHeader({ users, user }: { users: Awaited<ReturnType<typeof getUsers>>; user: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="title-outline text-3xl">Settings</h1>
+      <h1 className="title-outline text-5xl sm:text-7xl">Settings</h1>
       <UserSwitcher users={users} current={user} />
     </div>
   );
@@ -276,15 +276,15 @@ export async function InboxSection({ error, added }: { error?: string; added?: s
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="title-outline text-3xl">Email matches</h1>
+        <h1 className="title-outline text-5xl sm:text-7xl">Email matches</h1>
         <UserSwitcher users={users} current={user.id} />
       </div>
-      <p className="text-sm font-semibold text-cocoa-500">
+      <p className="text-sm text-ink-500">
         Forwarded emails we couldn&apos;t tie to one of your roles on our own: pick the role and what the email
         means, then <i>Match</i>.
       </p>
       {error && (
-        <p className="rounded-2xl border-2 border-berry-500/40 bg-berry-100 px-3 py-2 text-sm font-semibold text-berry-500">
+        <p className="rounded-sm border border-alert-500/40 bg-alert-100 px-3 py-2 text-sm font-semibold text-alert-500">
           {error === "label"
             ? "Pick what the email means."
             : error === "add"
@@ -293,14 +293,14 @@ export async function InboxSection({ error, added }: { error?: string; added?: s
         </p>
       )}
       {added && (
-        <p className="rounded-2xl border-2 border-leaf-400 bg-leaf-100 px-3 py-2 text-sm font-semibold text-leaf-700">
+        <p className="rounded-sm border border-ok-400 bg-ok-100 px-3 py-2 text-sm font-semibold text-ok-700">
           {added === "existing"
             ? "That role was already in the tracker, so it's on your board now, marked Applied."
             : "Added to your board, marked Applied."}
         </p>
       )}
       {events.length === 0 ? (
-        <p className="py-8 text-center font-semibold text-cocoa-500">
+        <p className="py-8 text-center text-ink-500">
           Nothing to sort out. Emails we can&apos;t match to a role on our own will show up here.
         </p>
       ) : (
@@ -308,9 +308,9 @@ export async function InboxSection({ error, added }: { error?: string; added?: s
           {events.map((e) => (
             <li key={e.id} className="card-plain flex flex-col gap-2 p-3 text-sm">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="font-semibold text-cocoa-500">{formatDate(new Date(e.received_at))}</span>
-                <span className="font-display font-semibold text-cocoa-900">{e.subject || "(no subject)"}</span>
-                {e.sender_domain && <span className="font-semibold text-cocoa-500">from {e.sender_domain}</span>}
+                <span className="text-ink-500">{formatDate(new Date(e.received_at))}</span>
+                <span className="font-display font-semibold text-ink-900">{e.subject || "(no subject)"}</span>
+                {e.sender_domain && <span className="text-ink-500">from {e.sender_domain}</span>}
                 <GmailButton account={gmail} e={e} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -367,20 +367,20 @@ export async function InboxSection({ error, added }: { error?: string; added?: s
 // say who the employer is, so the person types it.
 function AddToBoard({ eventId }: { eventId: number }) {
   return (
-    <details className="rounded-2xl border-2 border-dashed border-peach-300 bg-cream-50 px-3 py-2">
-      <summary className="cursor-pointer select-none font-display font-semibold text-cocoa-700">Add to board as Applied</summary>
+    <details className="rounded-sm border border-dashed border-line-300 bg-paper-50 px-3 py-2">
+      <summary className="cursor-pointer select-none font-display text-ink-700">Add to board as Applied</summary>
       <form action={addToBoardFromInbox} className="mt-2 flex flex-wrap items-end gap-2">
         <input type="hidden" name="event" value={eventId} />
         <label className="flex min-w-0 flex-1 basis-40 flex-col gap-0.5">
-          <span className="font-semibold text-cocoa-500">Company</span>
+          <span className="text-ink-500">Company</span>
           <input name="company" aria-label="Company" required maxLength={300} className="field px-2 py-1" />
         </label>
         <label className="flex min-w-0 flex-1 basis-48 flex-col gap-0.5">
-          <span className="font-semibold text-cocoa-500">Role</span>
+          <span className="text-ink-500">Role</span>
           <input name="role" aria-label="Role" required maxLength={300} className="field px-2 py-1" />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="font-semibold text-cocoa-500">Type</span>
+          <span className="text-ink-500">Type</span>
           <select name="type" defaultValue="internship" className="field px-2 py-1">
             {JOB_TYPES.map((t) => (
               <option key={t} value={t}>{TYPE_NAME[t]}</option>
@@ -389,7 +389,7 @@ function AddToBoard({ eventId }: { eventId: number }) {
         </label>
         <button className="btn-3d btn-carrot px-3 py-1">Add as Applied</button>
       </form>
-      <p className="mt-1 text-xs font-semibold text-cocoa-500">
+      <p className="mt-1 text-xs text-ink-500">
         If the role is already in the tracker, that one is used instead of adding a copy.
       </p>
     </details>
@@ -404,5 +404,5 @@ const TYPE_NAME: Record<(typeof JOB_TYPES)[number], string> = {
 };
 
 export function EmailSyncFallback() {
-  return <p className="py-16 text-center font-display text-lg font-semibold text-cocoa-300">Loading…</p>;
+  return <p className="py-16 text-center font-display text-lg font-semibold text-ink-300">Loading…</p>;
 }
