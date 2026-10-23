@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { boardAuthorized } from "@/lib/board-auth";
+import { db } from "@/lib/db";
+import { closeAction } from "@/lib/inbound/db.mjs";
 import { getUsers, setStatus } from "@/lib/jobs";
 import { isStatus, type Status } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
@@ -44,4 +46,18 @@ export async function updateStatus(
   // Purges the client router cache so every page shows the change.
   revalidatePath("/", "layout");
   return updated ? { ok: true } : { ok: false, error: "That role is no longer on your board." };
+}
+
+// Done / Dismiss on an action under a job's status.
+export async function updateAction(
+  actionId: number,
+  state: "done" | "dismissed",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await assertBoardAccess();
+  const userId = (await cookies()).get(USER_COOKIE)?.value;
+  if (!userId) return { ok: false, error: "Pick who you are first." };
+  if (!Number.isInteger(actionId) || (state !== "done" && state !== "dismissed")) return { ok: false, error: "Invalid update." };
+  const closed = await closeAction(db(), userId, actionId, state);
+  revalidatePath("/", "layout");
+  return closed ? { ok: true } : { ok: false, error: "That action was already closed." };
 }

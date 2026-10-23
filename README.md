@@ -289,13 +289,36 @@ on the **Settings** page. Resend receives the mail and calls `POST /api/inbound-
 4. **Matches** it to one of that user's roles by company: the sender's domain, then the sender's
    name (for ATS senders like Greenhouse), then the subject and body. With several roles at that
    company, the one whose title the email mentions wins, then the one already past "To do".
-5. **Moves the status forward, never back:** `received` / `assessment_invite` / `interview` →
-   Applied, `rejected` → Rejected, `offer` → Offer (To do < Applied < Rejected < Offer).
+5. **Applies the evidence** (`decideProgress` in `lib/inbound/match.mjs`, `applyEvidence` in
+   `lib/inbound/db.mjs`). Status and stage are separate:
+   - `received` → **Applied**; `assessment_invite` / `interview` → Applied plus the stage
+     **Assessment invited** / **Interview invited** (an invitation, never proof it happened);
+     `rejected` → **Rejected**; `offer` → **Offer**.
+   - Status (To do < Applied < Rejected < Offer) and stage only move forward, so a delayed
+     confirmation can't reset a later stage.
+   - An email sent before a change you made on the board can't undo it (`kept_manual`).
+   - Newer evidence that contradicts the outcome (an invitation after a rejection, a rejection
+     after an offer) changes nothing and is flagged on Settings (`conflict`).
+6. **Adds actions** under the role's status: *Complete assessment* for an assessment invitation;
+   *Book interview* or *Attend interview* when an interview email asks you to book a slot or gives
+   a time. Due dates are kept only when the email states them with a year; a time only with its
+   time zone, exactly as written. Reminders update the open action instead of adding another, and
+   don't reopen one you've closed. You mark actions **Done** or **Dismiss** them; an offer or
+   rejection closes the rest as *resolved* (not done).
 
 Anything without one clear role and a confident label goes to the **Email matches** page (`/inbox`), where you pick
-the role and the label by hand. Each email becomes a row in `status_events` with the subject, date,
-sender's domain, label and status change only. **Email bodies are never stored or logged.** Gmail's
-forwarding confirmation email is recognised too: its code and link appear on the Settings page.
+the role and the label by hand; that applies the same rules. An application confirmation that
+matches none of your roles can be **added to the board as Applied**: you type the company and role
+(never guessed from the sender), an existing job with the same company and role is reused, and a
+new one has no posting link. Each email becomes a row in `status_events` with the subject, date,
+sender's domain, label, outcome, the actions it asked for and, for Gmail filter forwards, the
+original Message-ID. **Email bodies are never stored or logged.** Gmail's forwarding confirmation
+email is recognised too: its code and link appear on the Settings page.
+
+**Open in Gmail.** Assessment and booking links stay in the original email. Each email and action
+has a link to it in your Gmail: set your Gmail address on Settings (it's never guessed, and links
+never use `/u/0`). With a verified original Message-ID the link searches `rfc822msgid:` and is
+labelled *Open in Gmail*; otherwise it's a sender-domain + subject search, labelled *Find in Gmail*.
 
 **Dry run:** set `INBOUND_DRY_RUN=1`, or add `?dryRun=1` to the webhook URL. Emails are classified
 and matched, the decision is returned and logged, and nothing is written. (Gmail's confirmation

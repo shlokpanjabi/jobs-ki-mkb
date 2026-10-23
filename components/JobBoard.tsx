@@ -2,10 +2,13 @@
 
 import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
-import { updateStatus } from "@/app/actions";
+import { updateAction, updateStatus } from "@/app/actions";
 import { daysBetween } from "@/lib/dates";
+import { gmailLink } from "@/lib/inbound/gmail.mjs";
 import { postingHref } from "@/lib/links.mjs";
-import { JOB_TYPES, STATUSES, type BoardRow, type JobType, type Status } from "@/lib/types";
+import {
+  JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status,
+} from "@/lib/types";
 
 const TYPE_LABEL: Record<JobType, string> = {
   internship: "Internship",
@@ -19,6 +22,18 @@ const STATUS_LABEL: Record<Status, string> = {
   applied: "Applied",
   rejected: "Rejected",
   offer: "Offer",
+};
+
+// Invitations only: a stage never says the assessment or interview happened.
+const STAGE_LABEL: Record<Stage, string> = {
+  assessment_invited: "Assessment invited",
+  interview_invited: "Interview invited",
+};
+
+const ACTION_LABEL: Record<ActionKind, string> = {
+  complete_assessment: "Complete assessment",
+  book_interview: "Book interview",
+  attend_interview: "Attend interview",
 };
 
 const STATUS_STYLE: Record<Status, string> = {
@@ -114,17 +129,21 @@ function formatDate(iso: string, today: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", options);
 }
 
-export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
+// gmailAccount: the Gmail address the person set on Settings, for "Open in
+// Gmail" links on actions; null when they haven't set one.
+export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; today: string; gmailAccount: string | null }) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
   const query = useDeferredValue(filters.q);
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [, startTransition] = useTransition();
-  const [optimisticRows, setOptimisticStatus] = useOptimistic(
+  const [optimisticRows, setOptimistic] = useOptimistic(
     rows,
-    (current: BoardRow[], change: { id: number; status: Status }) =>
-      current.map((row) => (row.id === change.id ? { ...row, status: change.status } : row)),
+    (current: BoardRow[], change: { id: number; status: Status } | { closedAction: number }) =>
+      "closedAction" in change
+        ? current.map((row) => ({ ...row, actions: row.actions.filter((a) => a.id !== change.closedAction) }))
+        : current.map((row) => (row.id === change.id ? { ...row, status: change.status } : row)),
   );
 
   const due = filters.due;
@@ -163,9 +182,22 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
   function changeStatus(id: number, status: Status) {
     setError(null);
     startTransition(async () => {
-      setOptimisticStatus({ id, status });
+      setOptimistic({ id, status });
       try {
         const result = await updateStatus(id, status);
+        if (!result.ok) setError(result.error);
+      } catch {
+        setError("Couldn't save that change. Check your connection and try again.");
+      }
+    });
+  }
+
+  function finishAction(actionId: number, state: "done" | "dismissed") {
+    setError(null);
+    startTransition(async () => {
+      setOptimistic({ closedAction: actionId });
+      try {
+        const result = await updateAction(actionId, state);
         if (!result.ok) setError(result.error);
       } catch {
         setError("Couldn't save that change. Check your connection and try again.");
@@ -267,7 +299,14 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {visible.slice(0, limit).map((row) => (
-              <JobRow key={row.id} row={row} today={today} onStatus={changeStatus} />
+              <JobRow
+                key={row.id}
+                row={row}
+                today={today}
+                gmailAccount={gmailAccount}
+                onStatus={changeStatus}
+                onAction={finishAction}
+              />
             ))}
           </tbody>
         </table>
@@ -301,11 +340,15 @@ export function JobBoard({ rows, today }: { rows: BoardRow[]; today: string }) {
 function JobRow({
   row,
   today,
+  gmailAccount,
   onStatus,
+  onAction,
 }: {
   row: BoardRow;
   today: string;
+  gmailAccount: string | null;
   onStatus: (id: number, status: Status) => void;
+  onAction: (actionId: number, state: "done" | "dismissed") => void;
 }) {
   const location = row.region && row.region !== row.location
     ? [row.location, row.region].filter(Boolean).join(" · ")
@@ -315,7 +358,11 @@ function JobRow({
   return (
     <tr className={row.status === "rejected" ? "text-gray-400" : undefined}>
       <td className="px-3 py-2 font-medium">{row.company}</td>
-      <td className="px-3 py-2">{row.role}</td>
+      <td className="px-3 py-2">
+        {row.role}
+        {/* On phones the status column starts off-screen, so progress shows here too. */}
+        <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="sm:hidden" />
+      </td>
       <td className="whitespace-nowrap px-3 py-2">{TYPE_LABEL[row.type]}</td>
       <td className="px-3 py-2">{row.domain ?? "—"}</td>
       <td className="px-3 py-2">{location ?? "—"}</td>
@@ -334,6 +381,7 @@ function JobRow({
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
         </select>
+        <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="hidden sm:block" />
       </td>
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
       <td className="sticky right-0 bg-white px-3 py-2">
@@ -363,6 +411,74 @@ function JobRow({
       </td>
     </tr>
   );
+}
+
+// Stage and open actions, shown beneath the job's status.
+function Progress({
+  row,
+  gmailAccount,
+  onAction,
+  className,
+}: {
+  row: BoardRow;
+  gmailAccount: string | null;
+  onAction: (actionId: number, state: "done" | "dismissed") => void;
+  className: string;
+}) {
+  const stage = row.stage && row.status === "applied" ? STAGE_LABEL[row.stage] : null;
+  if (!stage && !row.actions.length) return null;
+  return (
+    <div className={className}>
+      {stage && <div className="mt-1 whitespace-nowrap text-xs font-medium text-blue-800">{stage}</div>}
+      {row.actions.length > 0 && (
+        <ul className="mt-1.5 flex flex-col gap-1.5 sm:min-w-40">
+          {row.actions.map((action) => (
+            <ActionItem key={action.id} action={action} gmailAccount={gmailAccount} onAction={onAction} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ActionItem({
+  action,
+  gmailAccount,
+  onAction,
+}: {
+  action: BoardAction;
+  gmailAccount: string | null;
+  onAction: (actionId: number, state: "done" | "dismissed") => void;
+}) {
+  const link = action.email ? gmailLink(gmailAccount, action.email) : null;
+  const small = "rounded border border-gray-300 px-1.5 py-0.5 hover:bg-gray-50";
+  return (
+    <li className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+      <div className="font-medium">{ACTION_LABEL[action.kind]}</div>
+      <div className="text-amber-800">{dueText(action)}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        <button onClick={() => onAction(action.id, "done")} className={`${small} bg-white`}>Done</button>
+        <button onClick={() => onAction(action.id, "dismissed")} className={`${small} bg-white`}>Dismiss</button>
+        {link ? (
+          <a href={link.url} target="_blank" rel="noopener noreferrer" className="underline">
+            {link.exact ? "Open in Gmail" : "Find in Gmail"}
+          </a>
+        ) : action.email ? (
+          <a href="/settings" className="text-amber-800 underline">Add your Gmail to open the email</a>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+// As the email stated it; a time only ever comes with its zone.
+function dueText(action: BoardAction): string {
+  if (!action.dueDate) return action.kind === "attend_interview" ? "Time not given in the email" : "No deadline given";
+  const date = new Date(`${action.dueDate}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
+  const when = action.dueTime ? `${date}, ${action.dueTime} ${action.dueTz}` : date;
+  return action.kind === "attend_interview" ? when : `By ${when}`;
 }
 
 function Deadline({ deadline, today }: { deadline: string | null; today: string }) {

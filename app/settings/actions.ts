@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { boardAuthorized } from "@/lib/board-auth";
+import { db } from "@/lib/db";
 import { isHomeRegion } from "@/lib/home-filter";
+import { setGmailAccount } from "@/lib/inbound/db.mjs";
+import { normalizeGmailAccount } from "@/lib/inbound/gmail.mjs";
 import { setHomeFilter } from "@/lib/jobs";
 import { JOB_TYPES } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
@@ -24,4 +27,17 @@ export async function saveHomeFilter(formData: FormData) {
   await setHomeFilter(userId, regions, types.length === JOB_TYPES.length ? null : types);
   revalidatePath("/", "layout");
   redirect("/settings?home=saved");
+}
+
+// Saves the Gmail address "Open in Gmail" links use. Blank clears it.
+export async function saveGmailAccount(formData: FormData) {
+  if (!boardAuthorized((await headers()).get("authorization"))) throw new Error("Unauthorized");
+  const userId = (await cookies()).get(USER_COOKIE)?.value;
+  if (!userId) redirect("/settings");
+  const raw = String(formData.get("gmail") ?? "").trim();
+  const account = raw ? normalizeGmailAccount(raw) : null;
+  if (raw && !account) redirect("/settings?gmail=invalid");
+  await setGmailAccount(db(), userId, account);
+  revalidatePath("/", "layout");
+  redirect(`/settings?gmail=${account ? "saved" : "cleared"}`);
 }

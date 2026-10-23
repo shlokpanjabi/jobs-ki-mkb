@@ -1,9 +1,12 @@
 import { cookies } from "next/headers";
-import { dismissFromInbox, matchFromInbox } from "@/app/inbox/actions";
+import { addToBoardFromInbox, dismissFromInbox, matchFromInbox } from "@/app/inbox/actions";
+import { saveGmailAccount } from "@/app/settings/actions";
 import { db } from "@/lib/db";
-import { forwardingToken, inboxFor, jobsForUser, recentEvents } from "@/lib/inbound/db.mjs";
+import { forwardingToken, gmailAccount, inboxFor, jobsForUser, recentEvents } from "@/lib/inbound/db.mjs";
+import { gmailLink } from "@/lib/inbound/gmail.mjs";
 import { forwardingAddress } from "@/lib/inbound/email.mjs";
 import { getUsers } from "@/lib/jobs";
+import { JOB_TYPES } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
 import { CopyButton } from "./CopyButton";
 import { HomeFilterForm } from "./HomeFilterForm";
@@ -18,16 +21,52 @@ const LABEL_TEXT: Record<string, string> = {
   unknown: "Not sure",
 };
 // Row shapes of the lib/inbound/db.mjs queries used here.
-type AddressRow = { token: string; gmail_confirm_code: string | null; gmail_confirm_url: string | null; gmail_confirm_at: Date | null };
-type RecentEvent = {
-  id: number; received_at: Date; subject: string; sender_domain: string | null; classification: string;
-  state: string; new_status: string | null; company: string | null;
+type AddressRow = {
+  token: string; gmail_confirm_code: string | null; gmail_confirm_url: string | null; gmail_confirm_at: Date | null;
+  gmail_account: string | null;
 };
-type InboxEvent = {
+type EventRow = {
   id: number; received_at: Date; subject: string; sender_domain: string | null; classification: string;
+  state: string; new_status: string | null; new_stage: string | null; effect: string | null; source_message_id: string | null;
+};
+type RecentEvent = EventRow & { company: string | null };
+type InboxEvent = EventRow & {
   suggested_job_id: number | null; suggested_company: string | null; suggested_role: string | null;
 };
 type JobOption = { jobId: number; company: string; role: string };
+
+const STAGE_TEXT: Record<string, string> = { assessment_invited: "Assessment invited", interview_invited: "Interview invited" };
+
+// What a matched email did, in words. Only the cases where nothing changed need explaining.
+const EFFECT_TEXT: Record<string, string> = {
+  conflict: "doesn't fit your current status, so nothing changed: check it",
+  kept_manual: "older than your own change, so your status stands",
+  stale: "older news, no change",
+};
+
+function eventOutcome(e: RecentEvent): string {
+  if (e.state === "inbox") return "in Email matches";
+  if (e.state === "dismissed") return "dismissed";
+  const change = [e.new_status && `→ ${e.new_status}`, e.new_stage && STAGE_TEXT[e.new_stage]].filter(Boolean).join(", ");
+  // "updated" with no status or stage change means it added a to-do (say, an interview time).
+  const note = e.effect === "updated" ? "new to-do added" : e.effect ? EFFECT_TEXT[e.effect] : null;
+  return `${e.company ?? "?"}${change ? ` ${change}` : note ? `: ${note}` : " (no change)"}`;
+}
+
+// "Open in Gmail" for one recorded email, or a pointer to Settings if their Gmail isn't set.
+function GmailButton({ account, e }: { account: string | null; e: EventRow }) {
+  const link = gmailLink(account, { messageId: e.source_message_id, senderDomain: e.sender_domain, subject: e.subject });
+  if (!link) {
+    return account ? null : (
+      <a href="/settings#gmail" className="text-gray-500 underline">Add your Gmail to open it</a>
+    );
+  }
+  return (
+    <a href={link.url} target="_blank" rel="noopener noreferrer" className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50">
+      {link.exact ? "Open in Gmail" : "Find in Gmail"}
+    </a>
+  );
+}
 
 const FILTER_QUERY = "application OR assessment OR interview OR unfortunately";
 
@@ -67,7 +106,10 @@ function PickUser({ users, title }: { users: Awaited<ReturnType<typeof getUsers>
   );
 }
 
-export async function SettingsSection({ homeNotice }: { homeNotice?: "saved" | "empty" }) {
+export async function SettingsSection({ homeNotice, gmailNotice }: {
+  homeNotice?: "saved" | "empty";
+  gmailNotice?: "saved" | "cleared" | "invalid";
+}) {
   const { users, user } = await currentUser();
   if (!user) return <PickUser users={users} title="Settings" />;
   const sql = db();
@@ -100,15 +142,40 @@ export async function SettingsSection({ homeNotice }: { homeNotice?: "saved" | "
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Email status sync</h2>
         <p className="text-sm text-gray-600">
-          Forward application emails to your address and your board updates itself: confirmations, assessments and
-          interviews mark a role <b>Applied</b>, rejections <b>Rejected</b>, offers <b>Offer</b>. Statuses only move
-          forward. Emails it can&apos;t match to one of your roles wait in <a className="underline" href="/inbox">Email matches</a>.
-          Only the subject, date and sender&apos;s domain are kept, never the email itself.
+          Forward application emails to your address and your board updates itself: a confirmation marks a role{" "}
+          <b>Applied</b>; an assessment or interview invitation shows <b>Assessment invited</b> or{" "}
+          <b>Interview invited</b> and adds a to-do (like <i>Complete assessment</i>) under the role&apos;s status;
+          rejections and offers set <b>Rejected</b> or <b>Offer</b>. Progress only moves forward, and an email never
+          undoes a change you made yourself after it was sent. Emails it can&apos;t match to one of your roles wait in{" "}
+          <a className="underline" href="/inbox">Email matches</a>. Only the subject, date, sender&apos;s domain, the
+          email&apos;s ID and any deadline it states are kept, never the email itself.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm select-all">{address}</code>
           <CopyButton text={address} />
         </div>
+      </section>
+
+      <section id="gmail" className="flex flex-col gap-2">
+        <h2 className="font-medium">Your Gmail address</h2>
+        <p className="text-sm text-gray-600">
+          The address you forward from, so <i>Open in Gmail</i> opens the right account. Assessment and booking links
+          stay in the original email; the tracker never stores them.
+        </p>
+        <form action={saveGmailAccount} className="flex flex-wrap items-center gap-2 text-sm">
+          <input
+            type="email"
+            name="gmail"
+            defaultValue={addressRow.gmail_account ?? ""}
+            placeholder="you@gmail.com"
+            aria-label="Your Gmail address"
+            className="w-72 max-w-full rounded border border-gray-300 px-2 py-1"
+          />
+          <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1 text-white">Save</button>
+          {gmailNotice === "saved" && <span className="text-green-700">Saved.</span>}
+          {gmailNotice === "cleared" && <span className="text-gray-600">Cleared.</span>}
+          {gmailNotice === "invalid" && <span className="text-red-700">That doesn&apos;t look like an email address.</span>}
+        </form>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -169,13 +236,8 @@ export async function SettingsSection({ homeNotice }: { homeNotice?: "saved" | "
                 <span className="text-gray-500">{formatDate(new Date(e.received_at))}</span>
                 <span className="font-medium">{LABEL_TEXT[e.classification] ?? e.classification}</span>
                 <span className="min-w-0 flex-1 truncate">{e.subject || "(no subject)"}</span>
-                <span className="text-gray-500">
-                  {e.state === "matched"
-                    ? `${e.company ?? "?"}${e.new_status ? ` → ${e.new_status}` : " (no change)"}`
-                    : e.state === "inbox"
-                      ? "in Email matches"
-                      : "dismissed"}
-                </span>
+                <span className={e.effect === "conflict" ? "text-red-700" : "text-gray-500"}>{eventOutcome(e)}</span>
+                <GmailButton account={addressRow.gmail_account} e={e} />
               </li>
             ))}
           </ul>
@@ -194,15 +256,16 @@ function SettingsHeader({ users, user }: { users: Awaited<ReturnType<typeof getU
   );
 }
 
-export async function InboxSection({ error }: { error?: string }) {
+export async function InboxSection({ error, added }: { error?: string; added?: string }) {
   const { users, user } = await currentUser();
   if (!user) return <PickUser users={users} title="Email matches" />;
   const sql = db();
-  let events: InboxEvent[], jobs: JobOption[];
+  let events: InboxEvent[], jobs: JobOption[], gmail: string | null;
   try {
-    [events, jobs] = (await Promise.all([inboxFor(sql, user.id), jobsForUser(sql, user.id)])) as [
+    [events, jobs, gmail] = (await Promise.all([inboxFor(sql, user.id), jobsForUser(sql, user.id), gmailAccount(sql, user.id)])) as [
       InboxEvent[],
       JobOption[],
+      string | null,
     ];
   } catch (err) {
     console.error(`inbox: email sync unavailable: ${err instanceof Error ? err.message : err}`);
@@ -222,7 +285,18 @@ export async function InboxSection({ error }: { error?: string }) {
       </p>
       {error && (
         <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {error === "label" ? "Pick what the email means." : "Pick a role from the list (start typing the company)."}
+          {error === "label"
+            ? "Pick what the email means."
+            : error === "add"
+              ? "Fill in the company and the role to add it."
+              : "Pick a role from the list (start typing the company)."}
+        </p>
+      )}
+      {added && (
+        <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+          {added === "existing"
+            ? "That role was already in the tracker, so it's on your board now, marked Applied."
+            : "Added to your board, marked Applied."}
         </p>
       )}
       {events.length === 0 ? (
@@ -233,10 +307,11 @@ export async function InboxSection({ error }: { error?: string }) {
         <ul className="flex flex-col gap-3">
           {events.map((e) => (
             <li key={e.id} className="flex flex-col gap-2 rounded border border-gray-200 p-3 text-sm">
-              <div className="flex flex-wrap items-baseline gap-x-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="text-gray-500">{formatDate(new Date(e.received_at))}</span>
                 <span className="font-medium">{e.subject || "(no subject)"}</span>
                 {e.sender_domain && <span className="text-gray-500">from {e.sender_domain}</span>}
+                <GmailButton account={gmail} e={e} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <form action={matchFromInbox} className="flex flex-1 flex-wrap items-center gap-2">
@@ -264,7 +339,7 @@ export async function InboxSection({ error }: { error?: string }) {
                     defaultValue={
                       e.suggested_job_id ? jobLabel(e.suggested_company ?? "", e.suggested_role ?? "", e.suggested_job_id) : ""
                     }
-                    className="min-w-64 flex-1 rounded border border-gray-300 px-2 py-1"
+                    className="min-w-0 flex-1 basis-56 rounded border border-gray-300 px-2 py-1"
                   />
                   <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1 text-white">Match</button>
                 </form>
@@ -273,6 +348,7 @@ export async function InboxSection({ error }: { error?: string }) {
                   <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50">Dismiss</button>
                 </form>
               </div>
+              {e.classification === "received" && !e.suggested_job_id && <AddToBoard eventId={e.id} />}
             </li>
           ))}
         </ul>
@@ -285,6 +361,47 @@ export async function InboxSection({ error }: { error?: string }) {
     </div>
   );
 }
+
+// For an application confirmation that matches nothing on the board. Company
+// and role start empty: the sender (often an applicant-tracking system) doesn't
+// say who the employer is, so the person types it.
+function AddToBoard({ eventId }: { eventId: number }) {
+  return (
+    <details className="rounded border border-gray-200 bg-gray-50 px-3 py-2">
+      <summary className="cursor-pointer select-none font-medium">Add to board as Applied</summary>
+      <form action={addToBoardFromInbox} className="mt-2 flex flex-wrap items-end gap-2">
+        <input type="hidden" name="event" value={eventId} />
+        <label className="flex min-w-0 flex-1 basis-40 flex-col gap-0.5">
+          <span className="text-gray-600">Company</span>
+          <input name="company" aria-label="Company" required maxLength={300} className="rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="flex min-w-0 flex-1 basis-48 flex-col gap-0.5">
+          <span className="text-gray-600">Role</span>
+          <input name="role" aria-label="Role" required maxLength={300} className="rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-gray-600">Type</span>
+          <select name="type" defaultValue="internship" className="rounded border border-gray-300 px-2 py-1">
+            {JOB_TYPES.map((t) => (
+              <option key={t} value={t}>{TYPE_NAME[t]}</option>
+            ))}
+          </select>
+        </label>
+        <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1 text-white">Add as Applied</button>
+      </form>
+      <p className="mt-1 text-xs text-gray-500">
+        If the role is already in the tracker, that one is used instead of adding a copy.
+      </p>
+    </details>
+  );
+}
+
+const TYPE_NAME: Record<(typeof JOB_TYPES)[number], string> = {
+  internship: "Internship",
+  "part-time": "Part-time",
+  fellowship: "Fellowship",
+  hackathon: "Hackathon",
+};
 
 export function EmailSyncFallback() {
   return <p className="py-16 text-center text-sm text-gray-400">Loading…</p>;

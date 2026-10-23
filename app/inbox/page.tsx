@@ -13,6 +13,11 @@ export default function InboxPage({ searchParams }: PageProps<"/inbox">) {
 }
 
 async function InboxWithParams({ searchParams }: { searchParams: PageProps<"/inbox">["searchParams"] }) {
-  const { error } = await searchParams;
-  return <InboxSection error={typeof error === "string" ? error : undefined} />;
+  const { error, added } = await searchParams;
+  return (
+    <InboxSection
+      error={typeof error === "string" ? error : undefined}
+      added={added === "new" || added === "existing" ? added : undefined}
+    />
+  );
 }

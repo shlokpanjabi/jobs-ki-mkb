@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { todayISO } from "@/lib/dates";
+import { db } from "@/lib/db";
+import { gmailAccount } from "@/lib/inbound/db.mjs";
 import { describeHome } from "@/lib/home-filter";
 import { getBoardRows, getUsers } from "@/lib/jobs";
 import type { BoardRow } from "@/lib/types";
@@ -10,9 +12,10 @@ import { UserSwitcher } from "./UserSwitcher";
 
 export async function BoardSection() {
   const cookieUser = (await cookies()).get(USER_COOKIE)?.value ?? "";
-  const [users, rows] = await Promise.all([
+  const [users, rows, gmail] = await Promise.all([
     getUsers(),
     cookieUser ? getBoardRows(cookieUser) : Promise.resolve<BoardRow[]>([]),
+    cookieUser ? boardGmailAccount(cookieUser) : Promise.resolve(null),
   ]);
   const user = users.find((u) => u.id === cookieUser);
 
@@ -36,9 +39,18 @@ export async function BoardSection() {
         Showing {describeHome(user.homeRegions, user.homeTypes)}.{" "}
         <Link href="/settings" className="underline hover:text-gray-900">Change this in Settings</Link>
       </p>
-      <JobBoard rows={rows} today={todayISO()} />
+      <JobBoard rows={rows} today={todayISO()} gmailAccount={gmail} />
     </div>
   );
+}
+
+// For "Open in Gmail" on actions. The board still loads if email sync isn't set up.
+async function boardGmailAccount(userId: string): Promise<string | null> {
+  try {
+    return await gmailAccount(db(), userId);
+  } catch {
+    return null;
+  }
 }
 
 export function BoardFallback() {
