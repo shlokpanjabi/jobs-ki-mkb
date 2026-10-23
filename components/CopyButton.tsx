@@ -16,7 +16,7 @@ export function CopyButton({ text }: { text: string }) {
           // Clipboard blocked (e.g. insecure context): the address is still selectable.
         }
       }}
-      className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50"
+      className="btn-3d btn-cream px-3 py-1 text-sm"
     >
       {copied ? "Copied" : "Copy"}
     </button>

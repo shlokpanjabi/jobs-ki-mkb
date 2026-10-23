@@ -1,43 +1,72 @@
 import { cookies } from "next/headers";
+import { switchUser } from "@/app/actions";
 import Link from "next/link";
 import { todayISO } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { gmailAccount } from "@/lib/inbound/db.mjs";
 import { describeHome } from "@/lib/home-filter";
-import { getBoardRows, getUsers } from "@/lib/jobs";
+import { getBoardRows, getPetStats, getUsers } from "@/lib/jobs";
+import { petFor, SPECIES } from "@/lib/pets.mjs";
 import type { BoardRow } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
+import { EvolutionWatch } from "./EvolutionWatch";
 import { JobBoard } from "./JobBoard";
+import { Party, type PetInfo } from "./Party";
+import { Pet } from "./Pet";
 import { UserSwitcher } from "./UserSwitcher";
 
 export async function BoardSection() {
   const cookieUser = (await cookies()).get(USER_COOKIE)?.value ?? "";
-  const [users, rows, gmail] = await Promise.all([
+  const [users, rows, gmail, stats] = await Promise.all([
     getUsers(),
     cookieUser ? getBoardRows(cookieUser) : Promise.resolve<BoardRow[]>([]),
     cookieUser ? boardGmailAccount(cookieUser) : Promise.resolve(null),
+    getPetStats(),
   ]);
   const user = users.find((u) => u.id === cookieUser);
+  const empty = { applied: 0, assessments: 0, interviews: 0, offers: 0, questsDone: 0 };
+  const pets = users.map((u) => petFor(u.id, stats[u.id] ?? empty) as PetInfo);
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <h1 className="text-lg font-semibold">Who&apos;s applying?</h1>
-        <p className="text-sm text-gray-500">Pick your name to see the roles you&apos;re eligible for.</p>
-        <UserSwitcher users={users} current={null} />
+      <div className="flex flex-col items-center gap-4 py-12 text-center">
+        <h1 className="title-outline text-4xl">Who&apos;s applying?</h1>
+        <p className="font-semibold text-cocoa-500">Pick your name to see your roles and your pet.</p>
+        <form action={switchUser} className="flex flex-wrap justify-center gap-4">
+          {pets.map((pet) => (
+            <button
+              key={pet.userId}
+              name="user"
+              value={pet.userId}
+              className="card-stitched flex w-44 cursor-pointer flex-col items-center gap-1 px-4 pb-4 pt-3 transition hover:-translate-y-1"
+            >
+              <Pet species={pet.speciesKey} form={pet.form} id={`pick-${pet.userId}`} size={120} title={pet.name} />
+              <span className="title-outline text-xl">{users.find((u) => u.id === pet.userId)?.name}</span>
+              <span className="text-xs font-bold text-cocoa-500">with {pet.name} · Lv {pet.level}</span>
+            </button>
+          ))}
+        </form>
       </div>
     );
   }
+  const mine = pets.find((p) => p.userId === user.id)!;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      <EvolutionWatch
+        userId={user.id}
+        species={mine.speciesKey}
+        form={mine.form}
+        names={SPECIES[mine.speciesKey].forms.map((f) => f.name)}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">All roles</h1>
+        <h1 className="title-outline text-3xl">All roles</h1>
         <UserSwitcher users={users} current={user.id} />
       </div>
-      <p className="text-sm text-gray-500">
+      <Party me={user.id} pets={pets} users={users} />
+      <p className="text-sm font-semibold text-cocoa-500">
         Showing {describeHome(user.homeRegions, user.homeTypes)}.{" "}
-        <Link href="/settings" className="underline hover:text-gray-900">Change this in Settings</Link>
+        <Link href="/settings" className="text-carrot-700 underline hover:text-cocoa-900">Change this in Settings</Link>
       </p>
       <JobBoard rows={rows} today={todayISO()} gmailAccount={gmail} />
     </div>
@@ -54,5 +83,5 @@ async function boardGmailAccount(userId: string): Promise<string | null> {
 }
 
 export function BoardFallback() {
-  return <p className="py-16 text-center text-sm text-gray-400">Loading…</p>;
+  return <p className="py-16 text-center font-display text-lg font-semibold text-cocoa-300">Waking the pets up…</p>;
 }

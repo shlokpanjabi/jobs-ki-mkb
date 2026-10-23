@@ -6,6 +6,13 @@ Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
 - **All roles** (`/`): search, filter by type / domain / region / deadline / status, sort by deadline.
   The **Closing soon** chip limits it to deadlines from today through 7 days out (`/?due=7`; the old
   `/closing` link redirects there).
+- **Pets** (`/pets`): each person has a pet that grows as they make progress, styled after a cozy
+  game. XP (`lib/pets.mjs`): +10 per role applied to, +25 for an assessment invitation, +60 for an
+  interview invitation, +150 per offer, +5 per to-do finished. Pets evolve at 150 and 600 XP
+  (Shlok: Bitpip → Voltpaw → Stormane; Taran: Emberbun → Cindrabbit → Blazelop; Muzzamil:
+  Mossling → Fernhog → Grovehog), with a celebration the first time you see the new form. The
+  board shows your pet and the party ranked by XP; the Pet Dex shows every line, locked forms as
+  silhouettes. The pets are original SVG art (`components/Pet.tsx`).
 - **User switcher**: each person only sees roles marked eligible for them, with their own status.
 - **Apply** opens the posting and nothing else. **Mark applied** (on every To do role) sets your status;
   the status dropdown is there for corrections.
