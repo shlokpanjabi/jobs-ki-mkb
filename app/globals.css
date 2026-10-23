@@ -57,16 +57,18 @@ body {
 }
 
 @layer components {
-  /* Panels: hairline frame, no shadow. "stitched" is the slightly tinted variant. */
+  /* Panels: soft white cards with a hairline and a whisper of shadow.
+     "stitched" is the tinted variant used behind featured content. */
   .card-stitched {
     background: var(--color-paper-100);
     border: 1px solid var(--color-line-200);
-    border-radius: 2px;
+    border-radius: 1rem;
   }
   .card-plain {
     background: #fff;
     border: 1px solid var(--color-line-200);
-    border-radius: 2px;
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgb(17 17 16 / 0.04), 0 8px 24px -16px rgb(17 17 16 / 0.12);
   }
 
   /* Flat pill buttons. */

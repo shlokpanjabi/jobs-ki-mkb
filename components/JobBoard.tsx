@@ -7,6 +7,7 @@ import { daysBetween } from "@/lib/dates";
 import { gmailLink } from "@/lib/inbound/gmail.mjs";
 import { postingHref } from "@/lib/links.mjs";
 import { XP } from "@/lib/pets.mjs";
+import { CompanyMark } from "./CompanyMark";
 import {
   JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status,
 } from "@/lib/types";
@@ -232,7 +233,7 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
           <span className="label-mono rounded-full bg-ink-900 px-4 py-2 text-paper-50">{toast.text}</span>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line-200 pb-4 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <input
           type="search"
           value={filters.q}
@@ -300,7 +301,7 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
               <th className="px-3 py-2.5 font-semibold">Company</th>
               <th className="px-3 py-2.5 font-semibold">Role</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
-              <th className="px-3 py-2.5 font-semibold">Domain</th>
+              <th className="hidden px-3 py-2.5 font-semibold 2xl:table-cell">Domain</th>
               <th className="px-3 py-2.5 font-semibold">Location</th>
               <th className="px-3 py-2 font-medium" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}>
                 <button
@@ -310,9 +311,9 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
                   Deadline {filters.sort === "asc" ? "↑" : "↓"}
                 </button>
               </th>
-              <th className="px-3 py-2.5 font-semibold">Source</th>
+              <th className="hidden px-3 py-2.5 font-semibold 2xl:table-cell">Source</th>
               <th className="px-3 py-2.5 font-semibold">Status</th>
-              <th className="sticky right-0 bg-paper-50 px-3 py-2.5 text-right font-semibold">Actions</th>
+              <th className="sticky right-0 bg-white px-3 py-2.5 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-200">
@@ -374,20 +375,26 @@ function JobRow({
   const href = postingHref(row.link) ?? undefined;
 
   return (
-    <tr className={`group align-top transition-colors hover:bg-white ${row.status === "rejected" ? "text-ink-300" : ""}`}>
-      <td className="px-3 py-3.5 font-semibold tracking-[-0.01em]">{row.company}</td>
+    <tr className={`group align-top transition-colors hover:bg-paper-50 ${row.status === "rejected" ? "text-ink-300" : ""}`}>
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-2.5">
+          <CompanyMark name={row.company} size={30} />
+          <span className="font-semibold tracking-[-0.01em]">{row.company}</span>
+        </div>
+      </td>
       <td className="px-3 py-3.5">
         {row.role}
+        <div className="mt-0.5 text-xs text-ink-500 2xl:hidden">{[row.domain, row.source].filter(Boolean).join(" · ")}</div>
         {/* On phones the status column starts off-screen, so progress shows here too. */}
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="sm:hidden" />
       </td>
       <td className="whitespace-nowrap px-3 py-3.5">{TYPE_LABEL[row.type]}</td>
-      <td className="px-3 py-3.5">{row.domain ?? "—"}</td>
+      <td className="hidden px-3 py-3.5 2xl:table-cell">{row.domain ?? "—"}</td>
       <td className="px-3 py-3.5">{location ?? "—"}</td>
       <td className="whitespace-nowrap px-3 py-3.5">
         <Deadline deadline={row.deadline} today={today} />
       </td>
-      <td className="px-3 py-3.5 text-ink-500">{row.source ?? "—"}</td>
+      <td className="hidden px-3 py-3.5 text-ink-500 2xl:table-cell">{row.source ?? "—"}</td>
       <td className="px-3 py-3">
         <select
           value={row.status}
@@ -402,7 +409,7 @@ function JobRow({
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="hidden sm:block" />
       </td>
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
-      <td className="sticky right-0 bg-paper-50 px-3 py-3 transition-colors group-hover:bg-white">
+      <td className="sticky right-0 bg-white px-3 py-3 transition-colors group-hover:bg-paper-50">
         <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-2">
           {href && (
             // Opening a posting only opens it; applying is marked separately.
