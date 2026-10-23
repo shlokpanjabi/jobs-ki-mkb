@@ -67,6 +67,7 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `INGEST_PROFILES` | no      | JSON per-person rules (year of study, grade, hidden regions); see [Who sees what](#who-sees-what). |
 | `INGEST_SOURCES` | no       | Comma-separated source names from [Job ingestion](#job-ingestion). Defaults to the ones that work. |
 | `INGEST_SHEETS`  | no       | Comma-separated CSV / Google Sheets URLs to import (see [Your spreadsheets](#job-ingestion)). |
+| `INGEST_EXTRA_BOARDS` | no  | More company job boards to read, as `ats:board:Company` (see [Company boards](#job-ingestion)). |
 | `CRON_SECRET`    | for the cron | Secret Vercel Cron sends as `Authorization: Bearer <CRON_SECRET>`. Without it `/api/cron/ingest` answers `503`. |
 
 ## API
@@ -143,11 +144,12 @@ deadline, source, link`):
 | `northwestern-quant` | `northwestern.mjs` | [northwesternfintech/2027QuantInternships](https://github.com/northwesternfintech/2027QuantInternships): open (✅) links only |
 | `simplify` | `simplify.mjs` | [SimplifyJobs/Summer2027-Internships](https://github.com/SimplifyJobs/Summer2027-Internships)' `listings.json`: active roles |
 | `speedyapply` | `speedyapply.mjs` | speedyapply's [2027 SWE](https://github.com/speedyapply/2027-SWE-College-Jobs) and [2027 AI](https://github.com/speedyapply/2027-AI-College-Jobs) internship lists (US and international) |
+| `company-boards` | `company-boards.mjs` | About 30 companies' own careers pages, through Greenhouse's, Lever's and Ashby's public job-board APIs: internships, placements, working-student roles and fellowships only. This is where the business roles come from (see below) |
 | `indeed-uk` | `indeed.mjs` | RSS for "intern" / "student" part-time jobs from the last 7 days, falling back to the search page's job cards |
-| `internshala` | `uk-boards.mjs` | Internship listing pages, then each job page's JSON-LD (region India) |
+| `internshala` | `uk-boards.mjs` | Internship listing pages (all, work from home, marketing, business development, product management), then each job page's JSON-LD (region India) |
 | `luma` | `luma.mjs` | Luma discovery pages (`/london`, `/ai`, `/tech`), keeping hackathons |
 
-**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `internshala`, `luma`.
+**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `company-boards`, `internshala`, `luma`.
 `gradcracker`, `bright-network`, `prosple-uk` and `indeed-uk` refused automated requests in
 production (403 on their pages or robots.txt, or a robots.txt that disallows the feed), so they're
 off by default. Because the pipeline respects robots.txt and doesn't disguise itself, there's no
@@ -157,6 +159,13 @@ The GitHub lists (`simplify`, `speedyapply`, `northwestern-quant`) are the bigge
 roles on a first run, mostly US. They only take roles posted in the last 30 days (`MAX_AGE_DAYS` in
 `github.mjs`) so the board isn't flooded with stale listings. Jobs are never deleted when a listing
 closes; they stay on the board until their deadline passes or you mark them.
+
+**Company boards.** The list is `BOARDS` at the top of `company-boards.mjs` (board names taken from
+live Simplify listings). Add more without a deploy in `INGEST_EXTRA_BOARDS`, comma-separated as
+`ats:board:Company`, e.g. `greenhouse:monzo:Monzo,lever:zopa:Zopa,ashby:notion:Notion`. The board
+name is the one in the company's careers URL (`job-boards.greenhouse.io/<board>`,
+`jobs.lever.co/<board>`, `jobs.ashbyhq.com/<board>`). A board that can't be read is a warning; the
+source only fails if none can be read. These APIs publish no closing dates, so the jobs have none.
 
 `board.mjs` is the shared crawler for job boards that publish schema.org `JobPosting` data on
 their job pages (Gradcracker, Bright Network, Prosple, Internshala). Adding another such board is a
@@ -193,6 +202,34 @@ because the repo is public:
 | `courseYears` | Length of the degree (`4` for an integrated master's). |
 | `grade` | Percentage, or `first` / `upper 2:1` / `2:1` / `lower 2:1` / `2:2`. |
 | `hideRegions` | Board regions never shown to them, e.g. `["US"]`. |
+| `domains` | Opt-in role categories to show them, e.g. `["Consulting"]` (see below). |
+
+**Opt-in role categories.** Titles are sorted into domains by `DOMAIN_RULES` in `normalise.mjs`;
+business functions are checked first, so "AI Sales Intern" is GTM & Sales and "Product Marketing
+Intern" is Marketing:
+
+| Domain | Matches titles with |
+| ------ | ------------------- |
+| `Business Analysis` | business analyst, biz ops, business operations, strategy & operations, commercial / insights / strategy analyst |
+| `Consulting` | consulting, consultancy, consultant, advisory |
+| `GTM & Sales` | go-to-market, GTM, sales, business development, BDR/SDR, account executive/manager, partnerships, outreach, lead generation, customer success |
+| `Marketing` | marketing, growth marketing, brand, social media, content, community, communications, copywriting, SEO |
+| `Product` | product manager, APM, product owner, product ops, product analyst, product strategy |
+| `Strategy` | founder's associate, chief of staff, strategy intern, special projects |
+| `Growth` | growth intern/analyst, lifecycle, CRM, retention |
+| `Community & Events` | community intern/manager, events intern/coordinator, ambassadors, campus reps |
+| `PR & Comms` | PR, public relations, communications, public affairs, press office |
+| `People & Talent` | recruitment, talent acquisition, people ops, HR intern |
+| `Venture Capital` | venture capital, VC, venture analyst/fellow/scout |
+| `Revenue & Commercial` | RevOps, revenue operations, pricing analyst, commercial intern |
+| `Insights & Research` | market research, consumer/customer insights, user research, insights analyst |
+| `Operations` | operations intern, programme/project management (after Finance, so trading operations stays Finance) |
+
+Every category above except Marketing and Product (`OPT_IN_DOMAINS` in `profiles.mjs`) is only
+shown to people who opted in: by user id in `DOMAIN_INTERESTS` (Taran has all of them), or
+through `domains` in their profile. Marketing and Product are shown to everyone as before. To make
+a category opt-in, add it to `OPT_IN_DOMAINS`; to give someone a new one, add it to their entry in
+`DOMAIN_INTERESTS`.
 
 Rules in `profiles.mjs` only act on what a listing actually says, so a listing that mentions no year,
 grade or degree is shown to everyone it's not region-hidden from:
