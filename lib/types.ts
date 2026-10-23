@@ -18,8 +18,29 @@ export type BoardRow = {
   region: string | null;
   deadline: string | null; // YYYY-MM-DD, null = rolling
   source: string | null; // every source listing this job, comma-separated
-  link: string;
+  link: string | null; // null for jobs added from an email: no posting
   status: Status;
+  stage: Stage | null; // furthest invitation seen; never means it was completed
+  actions: BoardAction[]; // open actions from emails, soonest first
+};
+
+export const STAGES = ["assessment_invited", "interview_invited"] as const;
+export type Stage = (typeof STAGES)[number];
+
+export const ACTION_KINDS = ["complete_assessment", "book_interview", "attend_interview"] as const;
+export type ActionKind = (typeof ACTION_KINDS)[number];
+
+// Something an email asked the person to do for one application. The due
+// date, time and zone are as the email stated them (time only with a zone).
+export type BoardAction = {
+  id: number;
+  kind: ActionKind;
+  dueDate: string | null; // YYYY-MM-DD
+  dueTime: string | null; // HH:MM, in dueTz
+  dueTz: string | null;
+  reminders: number;
+  // The email that last asked for it, to find in Gmail.
+  email: { subject: string; senderDomain: string | null; messageId: string | null } | null;
 };
 
 export function isStatus(value: unknown): value is Status {

@@ -13,6 +13,11 @@ export default function SettingsPage({ searchParams }: PageProps<"/settings">) {
 }
 
 async function SettingsWithParams({ searchParams }: { searchParams: PageProps<"/settings">["searchParams"] }) {
-  const { home } = await searchParams;
-  return <SettingsSection homeNotice={home === "saved" || home === "empty" ? home : undefined} />;
+  const { home, gmail } = await searchParams;
+  return (
+    <SettingsSection
+      homeNotice={home === "saved" || home === "empty" ? home : undefined}
+      gmailNotice={gmail === "saved" || gmail === "cleared" || gmail === "invalid" ? gmail : undefined}
+    />
+  );
 }
