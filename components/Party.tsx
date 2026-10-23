@@ -9,7 +9,8 @@ export type PetInfo = {
   speciesKey: Species;
   type: string;
   form: Form;
-  name: string;
+  name: string; // nickname, or the form's name when there's none
+  formName: string;
   blurb: string;
   nextName: string | null;
   level: number;
@@ -80,7 +81,7 @@ function HeroCard({ pet, owner }: { pet: PetInfo; owner: string }) {
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="title-outline text-4xl">{pet.name}</h2>
           <span className="label-mono rounded-full border border-line-300 px-2.5 py-0.5 text-ink-700">
-            Lv {pet.level} · {pet.type} type
+            {pet.formName !== pet.name && `${pet.formName} · `}Lv {pet.level} · {pet.type} type
           </span>
           <span className="text-sm text-ink-500">{owner}&apos;s pet</span>
         </div>
