@@ -215,9 +215,18 @@ Intern" is Marketing:
 | `GTM & Sales` | go-to-market, GTM, sales, business development, BDR/SDR, account executive/manager, partnerships, outreach, lead generation, customer success |
 | `Marketing` | marketing, growth marketing, brand, social media, content, community, communications, copywriting, SEO |
 | `Product` | product manager, APM, product owner, product ops, product analyst, product strategy |
+| `Strategy` | founder's associate, chief of staff, strategy intern, special projects |
+| `Growth` | growth intern/analyst, lifecycle, CRM, retention |
+| `Community & Events` | community intern/manager, events intern/coordinator, ambassadors, campus reps |
+| `PR & Comms` | PR, public relations, communications, public affairs, press office |
+| `People & Talent` | recruitment, talent acquisition, people ops, HR intern |
+| `Venture Capital` | venture capital, VC, venture analyst/fellow/scout |
+| `Revenue & Commercial` | RevOps, revenue operations, pricing analyst, commercial intern |
+| `Insights & Research` | market research, consumer/customer insights, user research, insights analyst |
+| `Operations` | operations intern, programme/project management (after Finance, so trading operations stays Finance) |
 
-`GTM & Sales`, `Consulting` and `Business Analysis` (`OPT_IN_DOMAINS` in `profiles.mjs`) are only
-shown to people who opted in: by user id in `DOMAIN_INTERESTS` (Taran has all five above), or
+Every category above except Marketing and Product (`OPT_IN_DOMAINS` in `profiles.mjs`) is only
+shown to people who opted in: by user id in `DOMAIN_INTERESTS` (Taran has all of them), or
 through `domains` in their profile. Marketing and Product are shown to everyone as before. To make
 a category opt-in, add it to `OPT_IN_DOMAINS`; to give someone a new one, add it to their entry in
 `DOMAIN_INTERESTS`.
