@@ -111,13 +111,13 @@ export function Pet({
           </feMerge>
         </filter>
         <filter id={u("locked")}>
-          <feFlood floodColor="#5B3A29" floodOpacity="0.85" />
+          <feFlood floodColor="#111110" floodOpacity="0.85" />
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
       </defs>
 
       {form === 2 && !silhouette && <circle cx="100" cy="112" r="92" fill={ref("aura")} />}
-      <ellipse cx="100" cy="184" rx={46 + form * 6} ry="8" fill="#6B4532" opacity={silhouette ? 0.1 : 0.16} />
+      <ellipse cx="100" cy="184" rx={46 + form * 6} ry="8" fill="#111110" opacity={silhouette ? 0.1 : 0.16} />
 
       <g filter={silhouette ? ref("locked") : ref("sticker")}>
         {/* Scaled here; bobbing on the inner group (a CSS animation would replace this transform). */}

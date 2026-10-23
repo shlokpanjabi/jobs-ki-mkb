@@ -30,19 +30,19 @@ export async function BoardSection() {
   if (!user) {
     return (
       <div className="flex flex-col items-center gap-4 py-12 text-center">
-        <h1 className="title-outline text-4xl">Who&apos;s applying?</h1>
-        <p className="font-semibold text-cocoa-500">Pick your name to see your roles and your pet.</p>
+        <h1 className="title-outline text-5xl sm:text-7xl">Who&apos;s applying?</h1>
+        <p className="text-ink-500">Pick your name to see your roles and your pet.</p>
         <form action={switchUser} className="flex flex-wrap justify-center gap-4">
           {pets.map((pet) => (
             <button
               key={pet.userId}
               name="user"
               value={pet.userId}
-              className="card-stitched flex w-44 cursor-pointer flex-col items-center gap-1 px-4 pb-4 pt-3 transition hover:-translate-y-1"
+              className="card-plain flex w-48 cursor-pointer flex-col items-center gap-1 px-4 pb-4 pt-3 transition-colors hover:border-ink-900"
             >
               <Pet species={pet.speciesKey} form={pet.form} id={`pick-${pet.userId}`} size={120} title={pet.name} />
               <span className="title-outline text-xl">{users.find((u) => u.id === pet.userId)?.name}</span>
-              <span className="text-xs font-bold text-cocoa-500">with {pet.name} · Lv {pet.level}</span>
+              <span className="label-mono text-ink-500">{pet.name} · Lv {pet.level}</span>
             </button>
           ))}
         </form>
@@ -59,14 +59,14 @@ export async function BoardSection() {
         form={mine.form}
         names={SPECIES[mine.speciesKey].forms.map((f) => f.name)}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="title-outline text-3xl">All roles</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="title-outline text-5xl sm:text-7xl">All roles</h1>
         <UserSwitcher users={users} current={user.id} />
       </div>
       <Party me={user.id} pets={pets} users={users} />
-      <p className="text-sm font-semibold text-cocoa-500">
+      <p className="text-sm text-ink-500">
         Showing {describeHome(user.homeRegions, user.homeTypes)}.{" "}
-        <Link href="/settings" className="text-carrot-700 underline hover:text-cocoa-900">Change this in Settings</Link>
+        <Link href="/settings" className="text-ink-900 underline decoration-1 underline-offset-4 hover:text-accent-500">Change this in Settings</Link>
       </p>
       <JobBoard rows={rows} today={todayISO()} gmailAccount={gmail} />
     </div>
@@ -83,5 +83,5 @@ async function boardGmailAccount(userId: string): Promise<string | null> {
 }
 
 export function BoardFallback() {
-  return <p className="py-16 text-center font-display text-lg font-semibold text-cocoa-300">Waking the pets up…</p>;
+  return <p className="label-mono py-16 text-center text-ink-300">Loading…</p>;
 }

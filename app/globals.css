@@ -1,38 +1,44 @@
 @import "tailwindcss";
 
-/* Cozy-game look: warm cream and peach, cocoa ink, chunky rounded type,
-   stitched cards, 3D buttons and sticker-style pets. */
+/* Editorial look: warm paper, near-black ink, hairline rules, one signal
+   accent. Big tight display type, mono micro-labels, flat pill buttons. */
 @theme {
-  --font-sans: var(--font-nunito), ui-rounded, system-ui, sans-serif;
-  --font-display: var(--font-fredoka), var(--font-nunito), ui-rounded, sans-serif;
+  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 
-  --color-cream-50: #fffaf3;
-  --color-cream-100: #fff3e4;
-  --color-peach-100: #fde9d9;
-  --color-peach-200: #f9dcc5;
-  --color-peach-300: #f0c3a1;
-  --color-peach-400: #e2a47b;
-  --color-cocoa-300: #c79c84;
-  --color-cocoa-500: #9a6a50;
-  --color-cocoa-700: #6b4532;
-  --color-cocoa-900: #47291c;
-  --color-carrot-300: #ffc08a;
-  --color-carrot-400: #ff9f45;
-  --color-carrot-500: #f28330;
-  --color-carrot-700: #c4611c;
-  --color-leaf-100: #e6f5d8;
-  --color-leaf-400: #8fd16f;
-  --color-leaf-500: #6dba52;
-  --color-leaf-700: #4a8f35;
-  --color-sun-100: #fff4cc;
-  --color-sun-300: #ffe08a;
-  --color-sun-400: #ffd15c;
-  --color-sun-600: #d9a21f;
-  --color-berry-100: #fde3e8;
-  --color-berry-500: #e2556b;
-  --color-lilac-100: #eee7fd;
-  --color-lilac-400: #b9a2f0;
-  --color-lilac-700: #6f52c4;
+  /* Surfaces */
+  --color-paper-50: #f3f2ee;
+  --color-paper-100: #e9e7e1;
+  /* Rules and borders */
+  --color-line-100: #ecebe5;
+  --color-line-200: #dcdad3;
+  --color-line-300: #c6c3ba;
+  --color-line-400: #9d9a91;
+  /* Text */
+  --color-ink-300: #a6a49d;
+  --color-ink-500: #6a6863;
+  --color-ink-700: #2d2c29;
+  --color-ink-900: #111110;
+  /* Signal accent */
+  --color-accent-300: #ffd3c3;
+  --color-accent-400: #ff6b3d;
+  --color-accent-500: #ff4f1a;
+  --color-accent-700: #c2390d;
+  /* Status tints, kept muted: ok = offer, mark = applied/actions, note = assessment, alert = errors */
+  --color-ok-100: #e2efe5;
+  --color-ok-400: #4aa565;
+  --color-ok-500: #2f8a4b;
+  --color-ok-700: #1e6436;
+  --color-mark-100: #e5eaf2;
+  --color-mark-300: #b7c5dc;
+  --color-mark-400: #7c96c2;
+  --color-mark-600: #33527f;
+  --color-note-100: #ebe8f3;
+  --color-note-400: #978cc0;
+  --color-note-700: #4a3d82;
+  --color-alert-100: #fbe6e0;
+  --color-alert-500: #cf3518;
 }
 
 :root {
@@ -40,138 +46,133 @@
 }
 
 body {
-  background-color: var(--color-cream-50);
-  color: var(--color-cocoa-900);
+  background-color: var(--color-paper-50);
+  color: var(--color-ink-900);
+  letter-spacing: -0.005em;
+}
+
+::selection {
+  background: var(--color-accent-500);
+  color: #fff;
 }
 
 @layer components {
-  /* Peach card with a stitched (dashed) border inside it. */
+  /* Panels: hairline frame, no shadow. "stitched" is the slightly tinted variant. */
   .card-stitched {
-    background: var(--color-peach-100);
-    border: 2px solid var(--color-peach-300);
-    border-radius: 1.5rem;
-    outline: 2px dashed var(--color-peach-300);
-    outline-offset: -9px;
-    box-shadow: 0 6px 0 -2px rgb(107 69 50 / 0.08);
+    background: var(--color-paper-100);
+    border: 1px solid var(--color-line-200);
+    border-radius: 2px;
   }
   .card-plain {
     background: #fff;
-    border: 2px solid var(--color-peach-200);
-    border-radius: 1.25rem;
-    box-shadow: 0 4px 0 -1px rgb(107 69 50 / 0.07);
+    border: 1px solid var(--color-line-200);
+    border-radius: 2px;
   }
 
-  /* Chunky 3D buttons: a darker bottom edge that presses in. */
+  /* Flat pill buttons. */
   .btn-3d {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    border-radius: 0.85rem;
-    font-family: var(--font-display);
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-weight: 500;
+    letter-spacing: -0.01em;
     white-space: nowrap;
-    transition: transform 80ms ease, box-shadow 80ms ease, filter 120ms ease;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
     cursor: pointer;
   }
-  .btn-3d:hover {
-    filter: brightness(1.04);
-  }
-  .btn-3d:active {
-    transform: translateY(3px);
-  }
   .btn-3d:focus-visible {
-    outline: 3px solid var(--color-lilac-400);
+    outline: 2px solid var(--color-accent-500);
     outline-offset: 2px;
   }
+  /* Primary: the signal colour. */
   .btn-carrot {
-    background: linear-gradient(var(--color-carrot-400), var(--color-carrot-500));
+    background: var(--color-accent-500);
     color: #fff;
-    border: 2px solid var(--color-carrot-700);
-    box-shadow: 0 4px 0 var(--color-carrot-700);
-    text-shadow: 0 1px 0 rgb(0 0 0 / 0.18);
   }
-  .btn-carrot:active {
-    box-shadow: 0 1px 0 var(--color-carrot-700);
+  .btn-carrot:hover {
+    background: var(--color-ink-900);
   }
-  .btn-leaf {
-    background: linear-gradient(var(--color-leaf-400), var(--color-leaf-500));
-    color: #fff;
-    border: 2px solid var(--color-leaf-700);
-    box-shadow: 0 4px 0 var(--color-leaf-700);
-    text-shadow: 0 1px 0 rgb(0 0 0 / 0.18);
-  }
-  .btn-leaf:active {
-    box-shadow: 0 1px 0 var(--color-leaf-700);
-  }
-  .btn-cream {
-    background: #fff;
-    color: var(--color-cocoa-700);
-    border: 2px solid var(--color-peach-300);
-    box-shadow: 0 4px 0 var(--color-peach-300);
-  }
-  .btn-cream:active {
-    box-shadow: 0 1px 0 var(--color-peach-300);
-  }
+  /* Solid ink. */
   .btn-cocoa {
-    background: var(--color-cocoa-700);
-    color: #fff;
-    border: 2px solid var(--color-cocoa-900);
-    box-shadow: 0 4px 0 var(--color-cocoa-900);
+    background: var(--color-ink-900);
+    color: var(--color-paper-50);
   }
-  .btn-cocoa:active {
-    box-shadow: 0 1px 0 var(--color-cocoa-900);
+  .btn-cocoa:hover {
+    background: var(--color-accent-500);
+    color: #fff;
+  }
+  /* Outlined ink: positive secondary actions (Mark applied, Done). */
+  .btn-leaf {
+    background: transparent;
+    color: var(--color-ink-900);
+    border-color: var(--color-ink-900);
+  }
+  .btn-leaf:hover {
+    background: var(--color-ink-900);
+    color: var(--color-paper-50);
+  }
+  /* Quiet outline. */
+  .btn-cream {
+    background: transparent;
+    color: var(--color-ink-700);
+    border-color: var(--color-line-300);
+  }
+  .btn-cream:hover {
+    border-color: var(--color-ink-900);
+    color: var(--color-ink-900);
   }
 
-  /* White display type with a cocoa outline, like a game title. */
+  /* Display type: large, tight, no ornament. */
   .title-outline {
     font-family: var(--font-display);
-    font-weight: 700;
-    color: #fff;
-    text-shadow:
-      2px 0 0 var(--color-cocoa-700), -2px 0 0 var(--color-cocoa-700), 0 2px 0 var(--color-cocoa-700),
-      0 -2px 0 var(--color-cocoa-700), 2px 2px 0 var(--color-cocoa-700), -2px 2px 0 var(--color-cocoa-700),
-      2px -2px 0 var(--color-cocoa-700), -2px -2px 0 var(--color-cocoa-700), 0 4px 0 var(--color-cocoa-700);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    color: var(--color-ink-900);
   }
 
-  /* Soft checkerboard band used as a divider. */
+  /* Mono micro-label, e.g. table headers and section numbers. */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Hairline divider (the old checker band). */
   .checker-band {
-    height: 14px;
-    background-color: var(--color-cream-100);
-    background-image: conic-gradient(var(--color-peach-200) 25%, transparent 0 50%, var(--color-peach-200) 0 75%, transparent 0);
-    background-size: 14px 14px;
+    height: 1px;
+    background: var(--color-ink-900);
   }
 
-  /* Inputs and selects in the cozy style. */
+  /* Inputs and selects: pill outline, ink on focus. */
   .field {
     background: #fff;
-    border: 2px solid var(--color-peach-200);
-    border-radius: 0.8rem;
-    color: var(--color-cocoa-900);
+    border: 1px solid var(--color-line-300);
+    border-radius: 999px;
+    color: var(--color-ink-900);
   }
   .field:focus {
     outline: none;
-    border-color: var(--color-carrot-400);
-    box-shadow: 0 0 0 3px rgb(255 159 69 / 0.25);
+    border-color: var(--color-ink-900);
   }
   .field::placeholder {
-    color: var(--color-cocoa-300);
+    color: var(--color-ink-300);
   }
 
-  /* XP bar: a rounded track with a striped fill. */
+  /* Progress bar: a thin track with a solid fill. */
   .xp-track {
-    background: var(--color-cream-100);
-    border: 2px solid var(--color-peach-300);
-    border-radius: 999px;
+    background: var(--color-line-200);
+    border-radius: 0;
     overflow: hidden;
   }
   .xp-fill {
     height: 100%;
-    border-radius: 999px;
-    background:
-      repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.25) 0 6px, transparent 6px 12px),
-      linear-gradient(var(--color-sun-400), var(--color-carrot-400));
+    background: var(--color-ink-900);
   }
 }
 

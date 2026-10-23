@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Fredoka, Nunito } from "next/font/google";
+import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { NavLinks } from "@/components/NavLinks";
 import "./globals.css";
 
-// Chunky rounded display type for titles and buttons; a rounded sans for text.
-const fredoka = Fredoka({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-fredoka" });
-const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"], variable: "--font-nunito" });
+// A tight grotesk for everything, set large for titles; mono for small labels.
+const interTight = Inter_Tight({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-inter-tight" });
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains-mono" });
 
 export const metadata: Metadata = {
   title: "Apply Tracker",
@@ -15,18 +15,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${fredoka.variable} ${nunito.variable}`}>
+    <html lang="en" className={`${interTight.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-screen font-sans antialiased">
-        <header className="bg-cream-100">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-            <Link href="/" className="title-outline text-2xl tracking-wide">
-              Apply Tracker
+        <header className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3 pb-4 pt-6">
+            <Link href="/" className="title-outline text-[28px] leading-none sm:text-[32px]">
+              Apply Tracker<span className="text-accent-500">.</span>
             </Link>
             <NavLinks />
           </div>
           <div className="checker-band" />
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-5">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
       </body>
     </html>
   );
