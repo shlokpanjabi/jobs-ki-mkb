@@ -7,8 +7,8 @@ Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.
   The **Closing soon** chip limits it to deadlines from today through 7 days out (`/?due=7`; the old
   `/closing` link redirects there).
 - **User switcher**: each person only sees roles marked eligible for them, with their own status.
-- **Apply** opens the posting and marks a To do role Applied (change it back with the status dropdown).
-  Roles without a working link get a **Mark applied** button instead.
+- **Apply** opens the posting and nothing else. **Mark applied** (on every To do role) sets your status;
+  the status dropdown is there for corrections.
 - **`POST /api/jobs`**: add or update a job with a per-user API key. Jobs are deduped by link.
 - **Email status sync**: forward application emails to your own address and statuses update
   themselves (see [Email status sync](#email-status-sync)).
