@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { BoardFallback } from "@/components/BoardSection";
 import { PetDex } from "@/components/PetDex";
 
-export const metadata: Metadata = { title: "Pet Dex · Apply Tracker" };
+export const metadata: Metadata = { title: "Pet Dex · Jobs ki mkb" };
 
 export default function PetsPage() {
   return (

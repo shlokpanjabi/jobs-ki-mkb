@@ -1,4 +1,4 @@
-# Apply Tracker
+# Jobs ki mkb
 
 A shared board of internships, part-time jobs, fellowships and hackathons for Taran, Shlok and Muzzamil.
 Next.js 16 (App Router) + TypeScript + Tailwind, backed by Supabase Postgres.

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EmailSyncFallback, SettingsSection } from "@/components/EmailSync";
 
-export const metadata: Metadata = { title: "Settings · Apply Tracker" };
+export const metadata: Metadata = { title: "Settings · Jobs ki mkb" };
 
 export default function SettingsPage({ searchParams }: PageProps<"/settings">) {
   return (
