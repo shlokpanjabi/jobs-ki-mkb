@@ -223,3 +223,44 @@ export async function setHomeFilter(userId: string, regions: string[], types: st
   const sql = await ready();
   await sql`update users set home_regions = ${regions}, home_types = ${types} where id = ${userId}`;
 }
+
+export type PetStats = { applied: number; assessments: number; interviews: number; offers: number; questsDone: number };
+
+// Progress per person for their pet (lib/pets.mjs). Each job counts once, even
+// when several sources list it (dedupe_key). Every status past To do means
+// they applied; the stage is the furthest invitation.
+export async function getPetStats(): Promise<Record<string, PetStats>> {
+  const sql = await ready();
+  const rows = await sql<{ user_id: string; applied: number; assessments: number; interviews: number; offers: number }[]>`
+    with apps as (
+      select distinct on (uj.user_id, coalesce(j.dedupe_key, 'id:' || j.id)) uj.user_id, uj.status, uj.stage
+      from user_jobs uj join jobs j on j.id = uj.job_id
+      where uj.status <> 'todo' or uj.stage is not null
+      order by uj.user_id, coalesce(j.dedupe_key, 'id:' || j.id), (uj.status <> 'todo') desc, uj.stage desc nulls last
+    )
+    select u.id as user_id,
+           (count(*) filter (where a.status in ('applied', 'rejected', 'offer')))::int as applied,
+           (count(*) filter (where a.stage = 'assessment_invited'))::int as assessments,
+           (count(*) filter (where a.stage = 'interview_invited'))::int as interviews,
+           (count(*) filter (where a.status = 'offer'))::int as offers
+    from users u left join apps a on a.user_id = u.id
+    group by u.id`;
+  const quests = await questsDone(sql);
+  return Object.fromEntries(
+    rows.map((r) => [r.user_id, {
+      applied: r.applied, assessments: r.assessments, interviews: r.interviews, offers: r.offers,
+      questsDone: quests.get(r.user_id) ?? 0,
+    }]),
+  );
+}
+
+// To-dos marked done. If the email sync tables aren't there yet, nobody has any.
+async function questsDone(sql: Awaited<ReturnType<typeof ready>>): Promise<Map<string, number>> {
+  try {
+    const rows = await sql<{ user_id: string; n: number }[]>`
+      select user_id, count(*)::int as n from application_actions where state = 'done' group by user_id`;
+    return new Map(rows.map((r) => [r.user_id, r.n]));
+  } catch {
+    return new Map();
+  }
+}

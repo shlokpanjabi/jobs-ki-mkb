@@ -6,6 +6,7 @@ import { updateAction, updateStatus } from "@/app/actions";
 import { daysBetween } from "@/lib/dates";
 import { gmailLink } from "@/lib/inbound/gmail.mjs";
 import { postingHref } from "@/lib/links.mjs";
+import { XP } from "@/lib/pets.mjs";
 import {
   JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status,
 } from "@/lib/types";
@@ -37,10 +38,15 @@ const ACTION_LABEL: Record<ActionKind, string> = {
 };
 
 const STATUS_STYLE: Record<Status, string> = {
-  todo: "border-gray-300 bg-white text-gray-700",
-  applied: "border-blue-200 bg-blue-50 text-blue-800",
-  rejected: "border-gray-200 bg-gray-100 text-gray-500",
-  offer: "border-green-200 bg-green-50 text-green-800",
+  todo: "border-peach-300 bg-white text-cocoa-700",
+  applied: "border-sun-600 bg-sun-100 text-cocoa-900",
+  rejected: "border-cocoa-300 bg-cream-100 text-cocoa-500",
+  offer: "border-leaf-700 bg-leaf-100 text-leaf-700",
+};
+
+const STAGE_STYLE: Record<Stage, string> = {
+  assessment_invited: "bg-lilac-100 text-lilac-700",
+  interview_invited: "bg-carrot-300/40 text-carrot-700",
 };
 
 const DUE_LABEL = {
@@ -137,6 +143,13 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
   const query = useDeferredValue(filters.q);
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE_SIZE);
+  // A little "+XP" pop when you make progress (lib/pets.mjs XP).
+  const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
+  const cheer = (text: string) => {
+    const key = Date.now();
+    setToast({ key, text });
+    setTimeout(() => setToast((t) => (t?.key === key ? null : t)), 1500);
+  };
   const [, startTransition] = useTransition();
   const [optimisticRows, setOptimistic] = useOptimistic(
     rows,
@@ -181,6 +194,9 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
 
   function changeStatus(id: number, status: Status) {
     setError(null);
+    const before = optimisticRows.find((r) => r.id === id)?.status;
+    if (before === "todo" && status === "applied") cheer(`+${XP.applied} XP`);
+    if (status === "offer" && before !== "offer") cheer(`+${XP.offer} XP! An offer!`);
     startTransition(async () => {
       setOptimistic({ id, status });
       try {
@@ -194,6 +210,7 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
 
   function finishAction(actionId: number, state: "done" | "dismissed") {
     setError(null);
+    if (state === "done") cheer(`+${XP.quest} XP`);
     startTransition(async () => {
       setOptimistic({ closedAction: actionId });
       try {
@@ -206,27 +223,28 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
   }
 
   const isFiltered = filtersToQuery(filters) !== "";
-  const selectClass = "rounded border border-gray-300 bg-white px-2 py-1.5";
+  const selectClass = "field px-2 py-1.5 font-semibold";
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      {toast && (
+        <div key={toast.key} role="status" className="float-up pointer-events-none fixed bottom-10 left-1/2 z-40 -translate-x-1/2">
+          <span className="title-outline text-3xl">{toast.text}</span>
+        </div>
+      )}
+      <div className="card-plain flex flex-wrap items-center gap-2 p-3 text-sm">
         <input
           type="search"
           value={filters.q}
           onChange={(e) => update({ q: e.target.value })}
           placeholder="Search company, role, location…"
           aria-label="Search"
-          className="w-64 rounded border border-gray-300 px-2 py-1.5"
+          className="field w-64 max-w-full px-3 py-1.5"
         />
         <button
           onClick={() => update({ due: closingSoon ? DEFAULTS.due : "7" })}
           aria-pressed={closingSoon}
-          className={
-            closingSoon
-              ? "rounded-full border border-red-700 bg-red-50 px-3 py-1.5 font-medium text-red-800"
-              : "rounded-full border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50"
-          }
+          className={`btn-3d px-3 py-1.5 ${closingSoon ? "btn-carrot" : "btn-cream"}`}
         >
           Closing soon
         </button>
@@ -260,44 +278,44 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
           ))}
         </select>
         {isFiltered && (
-          <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 text-gray-500 underline hover:text-gray-900">
+          <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 font-semibold text-carrot-700 underline hover:text-cocoa-900">
             Reset
           </button>
         )}
-        <span className="ml-auto text-gray-500">
+        <span className="ml-auto font-semibold text-cocoa-500">
           {visible.length} of {rows.length} roles
         </span>
       </div>
 
       {error && (
-        <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="rounded-2xl border-2 border-berry-500/40 bg-berry-100 px-3 py-2 text-sm font-semibold text-berry-500">
           {error}
         </p>
       )}
 
-      <div className="overflow-x-auto rounded border border-gray-200">
+      <div className="card-plain overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+          <thead className="bg-peach-100 text-left font-display text-xs uppercase tracking-wider text-cocoa-500">
             <tr>
-              <th className="px-3 py-2 font-medium">Company</th>
-              <th className="px-3 py-2 font-medium">Role</th>
-              <th className="px-3 py-2 font-medium">Type</th>
-              <th className="px-3 py-2 font-medium">Domain</th>
-              <th className="px-3 py-2 font-medium">Location</th>
+              <th className="px-3 py-2.5 font-semibold">Company</th>
+              <th className="px-3 py-2.5 font-semibold">Role</th>
+              <th className="px-3 py-2.5 font-semibold">Type</th>
+              <th className="px-3 py-2.5 font-semibold">Domain</th>
+              <th className="px-3 py-2.5 font-semibold">Location</th>
               <th className="px-3 py-2 font-medium" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}>
                 <button
                   onClick={() => update({ sort: filters.sort === "asc" ? "desc" : "asc" })}
-                  className="uppercase tracking-wide hover:text-gray-900"
+                  className="uppercase tracking-wider hover:text-cocoa-900"
                 >
                   Deadline {filters.sort === "asc" ? "↑" : "↓"}
                 </button>
               </th>
-              <th className="px-3 py-2 font-medium">Source</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="sticky right-0 bg-gray-50 px-3 py-2 text-right font-medium">Actions</th>
+              <th className="px-3 py-2.5 font-semibold">Source</th>
+              <th className="px-3 py-2.5 font-semibold">Status</th>
+              <th className="sticky right-0 bg-peach-100 px-3 py-2.5 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y-2 divide-cream-100">
             {visible.slice(0, limit).map((row) => (
               <JobRow
                 key={row.id}
@@ -311,20 +329,20 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
           </tbody>
         </table>
         {visible.length > limit && (
-          <div className="border-t border-gray-100 px-3 py-3 text-center text-sm">
+          <div className="border-t-2 border-cream-100 px-3 py-3 text-center text-sm">
             <button
               onClick={() => setLimit((n) => n + PAGE_SIZE)}
-              className="rounded border border-gray-300 px-3 py-1.5 hover:bg-gray-50"
+              className="btn-3d btn-cream px-4 py-1.5"
             >
               Show {Math.min(PAGE_SIZE, visible.length - limit)} more
             </button>
-            <span className="ml-2 text-gray-500">
+            <span className="ml-2 font-semibold text-cocoa-500">
               Showing {limit} of {visible.length}
             </span>
           </div>
         )}
         {visible.length === 0 && (
-          <p className="px-3 py-10 text-center text-sm text-gray-500">
+          <p className="px-3 py-10 text-center font-semibold text-cocoa-500">
             {rows.length === 0
               ? "No roles here yet. New ones are added every morning, so check back tomorrow."
               : closingSoon
@@ -356,9 +374,9 @@ function JobRow({
   const href = postingHref(row.link) ?? undefined;
 
   return (
-    <tr className={row.status === "rejected" ? "text-gray-400" : undefined}>
-      <td className="px-3 py-2 font-medium">{row.company}</td>
-      <td className="px-3 py-2">
+    <tr className={`align-top hover:bg-cream-50 ${row.status === "rejected" ? "text-cocoa-300" : ""}`}>
+      <td className="px-3 py-2.5 font-display font-semibold">{row.company}</td>
+      <td className="px-3 py-2.5 font-semibold">
         {row.role}
         {/* On phones the status column starts off-screen, so progress shows here too. */}
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="sm:hidden" />
@@ -369,13 +387,13 @@ function JobRow({
       <td className="whitespace-nowrap px-3 py-2">
         <Deadline deadline={row.deadline} today={today} />
       </td>
-      <td className="px-3 py-2 text-gray-500">{row.source ?? "—"}</td>
+      <td className="px-3 py-2 text-cocoa-500">{row.source ?? "—"}</td>
       <td className="px-3 py-2">
         <select
           value={row.status}
           onChange={(e) => onStatus(row.id, e.target.value as Status)}
           aria-label={`Status for ${row.company} ${row.role}`}
-          className={`rounded border px-1.5 py-0.5 text-xs ${STATUS_STYLE[row.status]}`}
+          className={`rounded-full border-2 px-2 py-0.5 text-xs font-extrabold ${STATUS_STYLE[row.status]}`}
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
@@ -384,7 +402,7 @@ function JobRow({
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="hidden sm:block" />
       </td>
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
-      <td className="sticky right-0 bg-white px-3 py-2">
+      <td className="sticky right-0 bg-white px-3 py-2.5">
         <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-2">
           {href && (
             // Opening a posting only opens it; applying is marked separately.
@@ -392,7 +410,7 @@ function JobRow({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-700"
+              className="btn-3d btn-carrot px-3 py-1 text-xs"
             >
               Apply ↗
             </a>
@@ -400,12 +418,12 @@ function JobRow({
           {row.status === "todo" ? (
             <button
               onClick={() => onStatus(row.id, "applied")}
-              className="w-24 whitespace-nowrap rounded border border-gray-300 px-2.5 py-1 text-xs hover:bg-gray-50"
+              className="btn-3d btn-leaf w-28 px-2.5 py-1 text-xs"
             >
               Mark applied
             </button>
           ) : (
-            <span className="hidden w-24 sm:block" />
+            <span className="hidden w-28 sm:block" />
           )}
         </div>
       </td>
@@ -429,7 +447,11 @@ function Progress({
   if (!stage && !row.actions.length) return null;
   return (
     <div className={className}>
-      {stage && <div className="mt-1 whitespace-nowrap text-xs font-medium text-blue-800">{stage}</div>}
+      {stage && row.stage && (
+        <div className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-extrabold sm:whitespace-nowrap ${STAGE_STYLE[row.stage]}`}>
+          {stage}
+        </div>
+      )}
       {row.actions.length > 0 && (
         <ul className="mt-1.5 flex flex-col gap-1.5 sm:min-w-40">
           {row.actions.map((action) => (
@@ -451,20 +473,25 @@ function ActionItem({
   onAction: (actionId: number, state: "done" | "dismissed") => void;
 }) {
   const link = action.email ? gmailLink(gmailAccount, action.email) : null;
-  const small = "rounded border border-gray-300 px-1.5 py-0.5 hover:bg-gray-50";
+  // A "quest" card, like the shop cards in a cozy game.
   return (
-    <li className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
-      <div className="font-medium">{ACTION_LABEL[action.kind]}</div>
-      <div className="text-amber-800">{dueText(action)}</div>
-      <div className="mt-1 flex flex-wrap items-center gap-1">
-        <button onClick={() => onAction(action.id, "done")} className={`${small} bg-white`}>Done</button>
-        <button onClick={() => onAction(action.id, "dismissed")} className={`${small} bg-white`}>Dismiss</button>
+    <li className="rounded-2xl border-2 border-sun-600 bg-sun-100 px-2.5 py-1.5 text-xs text-cocoa-900 shadow-[0_3px_0_var(--color-sun-600)]">
+      <div className="flex items-center gap-1.5">
+        <span className="rounded-full bg-sun-600 px-1.5 py-px font-display text-[10px] font-semibold uppercase tracking-wider text-white">
+          Quest
+        </span>
+        <span className="font-display text-sm font-semibold">{ACTION_LABEL[action.kind]}</span>
+      </div>
+      <div className="mt-0.5 font-bold text-cocoa-500">{dueText(action)}</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <button onClick={() => onAction(action.id, "done")} className="btn-3d btn-leaf px-2 py-0.5">Done</button>
+        <button onClick={() => onAction(action.id, "dismissed")} className="btn-3d btn-cream px-2 py-0.5">Dismiss</button>
         {link ? (
-          <a href={link.url} target="_blank" rel="noopener noreferrer" className="underline">
+          <a href={link.url} target="_blank" rel="noopener noreferrer" className="font-bold text-carrot-700 underline">
             {link.exact ? "Open in Gmail" : "Find in Gmail"}
           </a>
         ) : action.email ? (
-          <a href="/settings" className="text-amber-800 underline">Add your Gmail to open the email</a>
+          <a href="/settings" className="font-bold text-carrot-700 underline">Add your Gmail to open the email</a>
         ) : null}
       </div>
     </li>
@@ -482,10 +509,10 @@ function dueText(action: BoardAction): string {
 }
 
 function Deadline({ deadline, today }: { deadline: string | null; today: string }) {
-  if (!deadline) return <span className="text-gray-500">Rolling</span>;
+  if (!deadline) return <span className="font-semibold text-cocoa-500">Rolling</span>;
   const days = daysBetween(today, deadline);
   const label = days < 0 ? "closed" : days === 0 ? "today" : days === 1 ? "tomorrow" : `${days}d left`;
-  const tone = days < 0 ? "text-gray-400" : days <= 7 ? "font-medium text-red-700" : "text-gray-500";
+  const tone = days < 0 ? "text-cocoa-300" : days <= 7 ? "font-extrabold text-berry-500" : "font-semibold text-cocoa-500";
   return (
     <>
       {formatDate(deadline, today)} <span className={`text-xs ${tone}`}>{label}</span>
