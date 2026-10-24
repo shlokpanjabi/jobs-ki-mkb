@@ -147,7 +147,7 @@ deadline, source, link`):
 | `company-boards` | `company-boards.mjs` | About 30 companies' own careers pages, through Greenhouse's, Lever's and Ashby's public job-board APIs: internships, placements, working-student roles and fellowships only. This is where the business roles come from (see below) |
 | `indeed-uk` | `indeed.mjs` | RSS for "intern" / "student" part-time jobs from the last 7 days, falling back to the search page's job cards |
 | `internshala` | `uk-boards.mjs` | Internship listing pages (all, work from home, marketing, business development, product management), then each job page's JSON-LD (region India) |
-| `luma` | `luma.mjs` | Luma discovery pages (`/london`, `/ai`, `/tech`), keeping hackathons |
+| `luma` | `luma.mjs` | Luma's event search (London, for hackathon / hack / buildathon) and the `/london` page, keeping hackathons |
 
 **Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `company-boards`, `internshala`, `luma`.
 `gradcracker`, `bright-network`, `prosple-uk` and `indeed-uk` refused automated requests in
@@ -273,7 +273,9 @@ Each source's counts are logged:
 **Being polite.** Requests send `User-Agent: ApplyTrackerBot/1.0 (+repo URL)` (override with
 `INGEST_USER_AGENT`). `robots.txt` is checked before every request: a missing file (`404`) allows
 everything, while `401`/`403`/`429`/`5xx` or an unreachable file means the site isn't crawled at
-all. Requests to one host are made one at a time, at least 2 s apart, or the site's `Crawl-delay`
+all. The exception is documented public job-board APIs (`PUBLIC_JOB_APIS` in `http.mjs`, currently
+Ashby's): their API hosts answer every unknown path with `401`, so there a `4xx` other than `429`
+means "no robots.txt", as RFC 9309 says. Requests to one host are made one at a time, at least 2 s apart, or the site's `Crawl-delay`
 if longer (capped at 30 s). A `429`/`503` is retried once after `Retry-After`.
 
 Check a site's terms before turning one of the off-by-default sources back on.
