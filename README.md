@@ -65,6 +65,8 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `APP_TIMEZONE`   | no       | IANA timezone (e.g. `America/New_York`, `Asia/Kolkata`) used to decide what "today" is for deadlines. Defaults to `UTC`. |
 | `INGEST_USERS`   | no       | Comma-separated user ids who see ingested jobs, e.g. `shlok,taran`. Defaults to every user. |
 | `INGEST_PROFILES` | no      | JSON per-person rules (year of study, grade, hidden regions); see [Who sees what](#who-sees-what). |
+| `OPENAI_API_KEY` | no      | Turns on the `linkedin-posts` source (OpenAI web search, about six searches a night). |
+| `LINKEDIN_POSTS_MODEL` | no  | Model for that search; default `gpt-5-mini`. |
 | `INGEST_SOURCES` | no       | Comma-separated source names from [Job ingestion](#job-ingestion). Defaults to the ones that work. |
 | `INGEST_SHEETS`  | no       | Comma-separated CSV / Google Sheets URLs to import (see [Your spreadsheets](#job-ingestion)). |
 | `INGEST_EXTRA_BOARDS` | no  | More company job boards to read, as `ats:board:Company` (see [Company boards](#job-ingestion)). |
@@ -148,8 +150,9 @@ deadline, source, link`):
 | `indeed-uk` | `indeed.mjs` | RSS for "intern" / "student" part-time jobs from the last 7 days, falling back to the search page's job cards |
 | `internshala` | `uk-boards.mjs` | Internship listing pages (all, work from home, marketing, business development, product management), then each job page's JSON-LD (region India) |
 | `luma` | `luma.mjs` | Luma's event search (London, for hackathon / hack / buildathon) and the `/london` page, keeping hackathons |
+| `linkedin-posts` | `linkedin-posts.mjs` | Public LinkedIn hiring posts and jobs, found with OpenAI's web search (linkedin.com only). Needs `OPENAI_API_KEY`; finds nothing without it. Only links the search returned are kept. LinkedIn itself is never visited (its robots.txt forbids crawlers). |
 
-**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `company-boards`, `internshala`, `luma`.
+**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `company-boards`, `internshala`, `luma`, `linkedin-posts`.
 `gradcracker`, `bright-network`, `prosple-uk` and `indeed-uk` refused automated requests in
 production (403 on their pages or robots.txt, or a robots.txt that disallows the feed), so they're
 off by default. Because the pipeline respects robots.txt and doesn't disguise itself, there's no
