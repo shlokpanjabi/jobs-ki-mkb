@@ -24,7 +24,9 @@ export async function GET(request: Request) {
 
   const dryRun = ["1", "true"].includes(new URL(request.url).searchParams.get("dryRun") ?? "");
   try {
-    const sources = selectSources(process.env.INGEST_SOURCES);
+    // vercel.json schedules this route several times, each for a few sources
+    // (?sources=company-boards), so every run gets the full time limit.
+    const sources = selectSources(new URL(request.url).searchParams.get("sources") ?? process.env.INGEST_SOURCES);
     const profiles = parseProfiles();
     const users = await resolveUsers(db());
     const today = todayISO();
