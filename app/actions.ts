@@ -65,32 +65,32 @@ export async function updateAction(
 export type AddRoleState =
   | { status: "idle" }
   | { status: "error"; errors: string[] }
-  | { status: "done"; outcome: "added" | "attached" | "exists"; role: string; company: string; userName: string };
+  | {
+      status: "done";
+      outcome: "added" | "attached" | "exists";
+      role: string;
+      company: string;
+      addedFor: string[];
+      alreadyOn: string[];
+    };
 
 const ADD_ROLE_FIELDS = ["company", "role", "type", "link", "location", "region", "domain", "deadline", "source"] as const;
 
-// "Add role" form on the board. Writes only to the board of the person in
-// "Viewing as" (the cookie), and only if that's still who the form was showing
-// (`for`): switching user in another tab can't send a role to the wrong board.
+// "Add role" form on the board. Adds the role to everyone's board (boards that
+// already have the link are left as they are).
 export async function addRole(_prev: AddRoleState, formData: FormData): Promise<AddRoleState> {
   await assertBoardAccess();
-  const userId = (await cookies()).get(USER_COOKIE)?.value;
-  const users = await getUsers();
-  const user = users.find((u) => u.id === userId);
-  if (!user) return { status: "error", errors: ["Pick who you are first."] };
-  const target = String(formData.get("for") ?? "");
-  if (target !== user.id) {
-    const shown = users.find((u) => u.id === target)?.name ?? "someone else";
-    return {
-      status: "error",
-      errors: [`This form was for ${shown}, but you're now viewing as ${user.name}. Reload the page and try again.`],
-    };
-  }
-
   const body: Record<string, unknown> = {};
   for (const field of ADD_ROLE_FIELDS) body[field] = String(formData.get(field) ?? "");
-  const result = await addRoleByHand(user.id, body);
+  const result = await addRoleByHand(body);
   if (!result.ok) return { status: "error", errors: result.errors };
   if (result.outcome !== "exists") revalidatePath("/", "layout");
-  return { status: "done", outcome: result.outcome, role: String(body.role).trim(), company: String(body.company).trim(), userName: user.name };
+  return {
+    status: "done",
+    outcome: result.outcome,
+    role: String(body.role).trim(),
+    company: String(body.company).trim(),
+    addedFor: result.addedFor,
+    alreadyOn: result.alreadyOn,
+  };
 }

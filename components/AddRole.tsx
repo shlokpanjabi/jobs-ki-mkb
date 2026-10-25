@@ -14,9 +14,15 @@ const TYPE_LABEL: Record<JobType, string> = {
 // The board's region labels, as the region filter shows them.
 const REGIONS = HOME_REGIONS.flatMap((r) => [...r.regions]);
 
-// "Add role" on the board: a form that adds one role to the board of the person
-// in "Viewing as" (`user`), named on the form so it can't go to the wrong board.
-export function AddRole({ user }: { user: { id: string; name: string } }) {
+// "A, B and C"
+function list(items: string[]) {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+const boards = (names: string[]) => `${list(names.map((n) => `${n}'s`))} board${names.length > 1 ? "s" : ""}`;
+
+// "Add role" on the board: a form that adds one role to everyone's board
+// (`users`, the names, all shown on the form).
+export function AddRole({ users }: { users: string[] }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<AddRoleState, FormData>(addRole, { status: "idle" });
   const form = useRef<HTMLFormElement>(null);
@@ -44,11 +50,9 @@ export function AddRole({ user }: { user: { id: string; name: string } }) {
         <div>
           <p className="label-mono text-ink-500">Add role</p>
           <h3 className="mt-1 text-xl font-semibold text-ink-900">
-            Adding to <span className="text-accent-500">{user.name}&apos;s</span> board
+            Adding to <span className="text-accent-500">everyone&apos;s</span> board
           </h3>
-          <p className="mt-1 text-sm text-ink-500">
-            Only {user.name} will see it. To add it for someone else, switch &ldquo;Viewing as&rdquo; first.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">{list(users)} will all see it.</p>
         </div>
         <button type="button" onClick={() => setOpen(false)} className="btn-3d btn-cream px-3 py-1 text-sm">
           Close
@@ -67,7 +71,6 @@ export function AddRole({ user }: { user: { id: string; name: string } }) {
         }}
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <input type="hidden" name="for" value={user.id} />
         <label className={label}>
           <span className="label-mono text-ink-500">Company *</span>
           <input name="company" maxLength={300} placeholder="e.g. Revolut" className={field} />
@@ -115,7 +118,7 @@ export function AddRole({ user }: { user: { id: string; name: string } }) {
         </label>
         <div className="flex flex-wrap items-end gap-3 sm:col-span-2">
           <button type="submit" disabled={pending} className="btn-3d btn-carrot px-5 py-2 text-sm disabled:opacity-60">
-            {pending ? "Adding…" : `Add to ${user.name}'s board`}
+            {pending ? "Adding…" : "Add for everyone"}
           </button>
         </div>
       </form>
@@ -134,13 +137,15 @@ export function AddRole({ user }: { user: { id: string; name: string } }) {
               state.outcome === "exists" ? "border-mark-300 bg-mark-100 text-mark-600" : "border-ok-400/50 bg-ok-100 text-ok-700"
             }`}
           >
-            {state.outcome === "added" && <>Added <b>{state.role}</b> at {state.company} to {state.userName}&apos;s board.</>}
-            {state.outcome === "attached" && (
-              <>That posting was already in the tracker, so it&apos;s now on {state.userName}&apos;s board too.</>
+            {state.outcome !== "exists" && (
+              <>
+                Added <b>{state.role}</b> at {state.company} to {boards(state.addedFor)}.
+                {state.alreadyOn.length > 0 && (
+                  <> It was already on {boards(state.alreadyOn)}, which {state.alreadyOn.length > 1 ? "were" : "was"} left as it was.</>
+                )}
+              </>
             )}
-            {state.outcome === "exists" && (
-              <>That link is already on {state.userName}&apos;s board, so nothing was changed.</>
-            )}
+            {state.outcome === "exists" && <>That link is already on everyone&apos;s board, so nothing was changed.</>}
           </p>
         )}
       </div>

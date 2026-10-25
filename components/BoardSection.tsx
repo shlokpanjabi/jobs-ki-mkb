@@ -78,7 +78,7 @@ export async function BoardSection() {
             <Link href="/settings" className="text-ink-900 underline decoration-1 underline-offset-4 hover:text-accent-500">Change</Link>
           </p>
         </div>
-        <AddRole key={user.id} user={{ id: user.id, name: user.name }} />
+        <AddRole users={users.map((u) => u.name)} />
         <JobBoard rows={rows} today={today} gmailAccount={gmail} />
       </section>
     </div>
