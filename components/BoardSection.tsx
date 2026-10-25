@@ -9,6 +9,7 @@ import { getBoardRows, getPetStats, getUsers } from "@/lib/jobs";
 import { petFor, SPECIES } from "@/lib/pets.mjs";
 import type { BoardRow } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
+import { AddRole } from "./AddRole";
 import { Dashboard } from "./Dashboard";
 import { EvolutionWatch } from "./EvolutionWatch";
 import { JobBoard } from "./JobBoard";
@@ -77,6 +78,7 @@ export async function BoardSection() {
             <Link href="/settings" className="text-ink-900 underline decoration-1 underline-offset-4 hover:text-accent-500">Change</Link>
           </p>
         </div>
+        <AddRole users={users.map((u) => u.name)} />
         <JobBoard rows={rows} today={today} gmailAccount={gmail} />
       </section>
     </div>

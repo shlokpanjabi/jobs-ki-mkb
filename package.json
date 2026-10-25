@@ -12,7 +12,7 @@
     "db:setup": "node scripts/db.mjs setup",
     "keys": "node scripts/generate-keys.mjs",
     "ingest": "node scripts/ingest.mjs",
-    "test": "node --test"
+    "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",

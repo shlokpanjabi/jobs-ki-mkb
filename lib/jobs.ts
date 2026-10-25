@@ -5,6 +5,7 @@ import { dedupeKey } from "./dedupe.mjs";
 import { HOME_REGIONS } from "./home-filter";
 import { normalizeLink } from "./links.mjs";
 import { openActions } from "./inbound/db.mjs";
+import { regionFor } from "./ingest/normalise.mjs";
 import { JOB_TYPES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Status, type User } from "./types";
 
 export type JobInput = {
@@ -121,6 +122,56 @@ export async function upsertJobForUser(
   return row;
 }
 
+export const HAND_SOURCE = "Added on the site";
+
+export type AddRoleResult =
+  | { ok: true; outcome: "added" | "attached" | "exists"; jobId: number; addedFor: string[]; alreadyOn: string[] }
+  | { ok: false; errors: string[] };
+
+// "Add role" on the site: puts one role on everyone's board. Same field rules
+// as POST /api/jobs (parseJobInput), and the same upsert (upsertJobForUser),
+// with two differences for a form:
+//   - a board that already has the link is left exactly as it is (status and
+//     job details included); if every board has it, it's reported as "exists";
+//   - the source says it was added on the site, and the role stays visible
+//     whatever each person's home filter says (user_jobs.added_by_hand).
+// A link already in the tracker for some people is attached to the other
+// boards ("attached"), with the job's details updated as upsertJobForUser does.
+// addedFor / alreadyOn are names, in getUsers' order.
+export async function addRoleByHand(body: Record<string, unknown>): Promise<AddRoleResult> {
+  const parsed = parseJobInput(body);
+  if ("errors" in parsed) return { ok: false, errors: parsed.errors };
+  const job = parsed.job;
+  const source = job.source ? `${job.source} (${HAND_SOURCE.toLowerCase()})` : HAND_SOURCE;
+  if (source.length > 300) return { ok: false, errors: ["source must be at most 270 characters"] };
+  job.source = source;
+  // Like the ingest: a region from the location, so the board's region filter works.
+  job.region ??= regionFor(job.location);
+
+  const sql = await ready();
+  const users = await getUsers();
+  if (!users.length) return { ok: false, errors: ["There are no boards to add it to."] };
+  const [existing] = await sql<{ id: number; on: string[] }[]>`
+    select j.id, coalesce(array_agg(uj.user_id) filter (where uj.eligible), '{}') as on
+    from jobs j left join user_jobs uj on uj.job_id = j.id
+    where j.link = ${job.link} group by j.id`;
+  const already = new Set(existing?.on ?? []);
+  const missing = users.filter((u) => !already.has(u.id));
+  const alreadyOn = users.filter((u) => already.has(u.id)).map((u) => u.name);
+  if (existing && !missing.length) return { ok: true, outcome: "exists", jobId: existing.id, addedFor: [], alreadyOn };
+
+  let id = existing?.id ?? 0;
+  let created = false;
+  for (const user of missing) {
+    const row = await upsertJobForUser(job, user.id);
+    id = row.id;
+    created ||= row.created;
+  }
+  await sql`update user_jobs set added_by_hand = true
+            where job_id = ${id} and user_id in ${sql(missing.map((u) => u.id))}`;
+  return { ok: true, outcome: created ? "added" : "attached", jobId: id, addedFor: missing.map((u) => u.name), alreadyOn };
+}
+
 export async function getUsers(): Promise<User[]> {
   const sql = await ready();
   const rows = await sql<User[]>`
@@ -152,7 +203,7 @@ export async function getBoardRows(userId: string): Promise<BoardRow[]> {
       join jobs j on j.id = uj.job_id
       cross join home h
       where uj.user_id = ${userId} and uj.eligible
-        and (uj.added_from_email or (
+        and (uj.added_from_email or uj.added_by_hand or (
           (h.home_types is null or j.type = any(h.home_types))
           and (j.region in (select region from region_map where key = any(h.home_regions))
                or ('other' = any(h.home_regions)

@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import { boardAuthorized } from "@/lib/board-auth";
 import { db } from "@/lib/db";
 import { closeAction } from "@/lib/inbound/db.mjs";
-import { getUsers, setStatus } from "@/lib/jobs";
+import { addRoleByHand, getUsers, setStatus } from "@/lib/jobs";
 import { isStatus, type Status } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
 
@@ -60,4 +60,37 @@ export async function updateAction(
   const closed = await closeAction(db(), userId, actionId, state);
   revalidatePath("/", "layout");
   return closed ? { ok: true } : { ok: false, error: "That action was already closed." };
+}
+
+export type AddRoleState =
+  | { status: "idle" }
+  | { status: "error"; errors: string[] }
+  | {
+      status: "done";
+      outcome: "added" | "attached" | "exists";
+      role: string;
+      company: string;
+      addedFor: string[];
+      alreadyOn: string[];
+    };
+
+const ADD_ROLE_FIELDS = ["company", "role", "type", "link", "location", "region", "domain", "deadline", "source"] as const;
+
+// "Add role" form on the board. Adds the role to everyone's board (boards that
+// already have the link are left as they are).
+export async function addRole(_prev: AddRoleState, formData: FormData): Promise<AddRoleState> {
+  await assertBoardAccess();
+  const body: Record<string, unknown> = {};
+  for (const field of ADD_ROLE_FIELDS) body[field] = String(formData.get(field) ?? "");
+  const result = await addRoleByHand(body);
+  if (!result.ok) return { status: "error", errors: result.errors };
+  if (result.outcome !== "exists") revalidatePath("/", "layout");
+  return {
+    status: "done",
+    outcome: result.outcome,
+    role: String(body.role).trim(),
+    company: String(body.company).trim(),
+    addedFor: result.addedFor,
+    alreadyOn: result.alreadyOn,
+  };
 }
