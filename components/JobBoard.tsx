@@ -61,6 +61,9 @@ const DUE_LABEL = {
 } as const;
 type Due = keyof typeof DUE_LABEL;
 
+// The Status menu's option for the stage filter (Filters.stage).
+const INVITED = "stage:invited";
+
 const PAGE_SIZE = 100; // rows rendered at a time; "Show more" adds another page
 
 type Filters = {
@@ -70,10 +73,13 @@ type Filters = {
   region: string;
   due: Due;
   status: string;
+  // "invited": applied and invited to an assessment or interview (the stage
+  // shown under the status, and the dashboard's "Assessment / interview").
+  stage: "" | "invited";
   sort: "asc" | "desc";
 };
 
-const DEFAULTS: Filters = { q: "", type: "", domain: "", region: "", due: "open", status: "", sort: "asc" };
+const DEFAULTS: Filters = { q: "", type: "", domain: "", region: "", due: "open", status: "", stage: "", sort: "asc" };
 
 function readFilters(params: URLSearchParams): Filters {
   const due = params.get("due") ?? "";
@@ -84,6 +90,7 @@ function readFilters(params: URLSearchParams): Filters {
     region: params.get("region") ?? "",
     due: due in DUE_LABEL ? (due as Due) : DEFAULTS.due,
     status: params.get("status") ?? "",
+    stage: params.get("stage") === "invited" ? "invited" : "",
     sort: params.get("sort") === "desc" ? "desc" : "asc",
   };
 }
@@ -141,6 +148,10 @@ function formatDate(iso: string, today: string): string {
 export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; today: string; gmailAccount: string | null }) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
+  // Queries this board has written to the URL that the router hasn't caught up with yet.
+  const [written, setWritten] = useState<string[]>([]);
+  const urlQuery = searchParams.toString();
+  const [seenQuery, setSeenQuery] = useState(urlQuery);
   const query = useDeferredValue(filters.q);
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -162,17 +173,35 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
 
   const due = filters.due;
   const closingSoon = due === "7";
-  // Any filter change starts again from the first page.
+  // Any filter change starts again from the first page. Filters are kept in
+  // the URL so a refresh or shared link shows the same view.
   const update = (patch: Partial<Filters>) => {
-    setFilters((f) => ({ ...f, ...patch }));
+    const next = { ...filters, ...patch };
+    const qs = filtersToQuery(next);
+    setFilters(next);
     setLimit(PAGE_SIZE);
+    setWritten((w) => [...w, qs]);
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
   };
 
-  // Keep filters in the URL so a refresh or shared link shows the same view.
+  // The URL also changes by navigating here (the dashboard links to filtered
+  // views): take those filters. Changes this board wrote itself are skipped.
+  if (urlQuery !== seenQuery) {
+    setSeenQuery(urlQuery);
+    if (!written.includes(urlQuery)) {
+      setFilters(readFilters(searchParams));
+      setLimit(PAGE_SIZE);
+      setWritten([]);
+    } else if (urlQuery === written.at(-1)) {
+      setWritten([]);
+    }
+  }
+
+  // Tidy the URL on load (drops unknown values, e.g. ?due=soon).
   useEffect(() => {
-    const qs = filtersToQuery(filters);
-    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [filters]);
+    const qs = filtersToQuery(readFilters(new URLSearchParams(window.location.search)));
+    if (qs !== window.location.search.slice(1)) window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, []);
 
   const domains = useMemo(() => uniqueSorted(rows.map((r) => r.domain)), [rows]);
   const regions = useMemo(() => uniqueSorted(rows.map((r) => r.region)), [rows]);
@@ -187,6 +216,7 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
           (!filters.domain || r.domain === filters.domain) &&
           (!filters.region || r.region === filters.region) &&
           (!filters.status || r.status === filters.status) &&
+          (!filters.stage || (r.status === "applied" && r.stage !== null)) &&
           matchesDue(r.deadline, due, today) &&
           (!q || searchText(r).includes(q)),
       )
@@ -272,11 +302,19 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
             <option key={d} value={d}>{DUE_LABEL[d]}</option>
           ))}
         </select>
-        <select aria-label="Status" value={filters.status} onChange={(e) => update({ status: e.target.value })} className={selectClass}>
+        <select
+          aria-label="Status"
+          value={filters.stage ? INVITED : filters.status}
+          onChange={(e) =>
+            update(e.target.value === INVITED ? { status: "", stage: "invited" } : { status: e.target.value, stage: "" })
+          }
+          className={selectClass}
+        >
           <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-          ))}
+          {STATUSES.map((s) => [
+            <option key={s} value={s}>{STATUS_LABEL[s]}</option>,
+            s === "applied" && <option key={INVITED} value={INVITED}>Assessment / interview</option>,
+          ])}
         </select>
         {isFiltered && (
           <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 text-ink-900 underline decoration-1 underline-offset-4 hover:text-accent-500">
