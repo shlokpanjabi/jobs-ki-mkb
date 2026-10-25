@@ -8,7 +8,7 @@ create table if not exists users (
 insert into users (id, name) values
   ('taran', 'Taran'),
   ('shlok', 'Shlok'),
-  ('muzzamil', 'Muzzamil')
+  ('muzzamil', 'Muzammil')
 on conflict (id) do nothing;
 
 create table if not exists jobs (

@@ -23,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="title-outline text-[26px] leading-none">
               Jobs ki mkb<span className="text-accent-500">.</span>
             </Link>
-            <p className="label-mono mt-2 hidden text-ink-300 lg:block">Taran · Shlok · Muzzamil</p>
+            <p className="label-mono mt-2 hidden text-ink-300 lg:block">Taran · Shlok · Muzammil</p>
             <div className="lg:mt-10">
               <NavLinks />
             </div>
