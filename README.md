@@ -149,10 +149,11 @@ deadline, source, link`):
 | `company-boards` | `company-boards.mjs` | About 170 companies' own careers pages (tech, fintech, AI, quant and trading; each board checked to belong to that company), through Greenhouse's, Lever's and Ashby's public job-board APIs: internships, placements, working-student roles and fellowships only. This is where the business roles come from (see below) |
 | `indeed-uk` | `indeed.mjs` | RSS for "intern" / "student" part-time jobs from the last 7 days, falling back to the search page's job cards |
 | `internshala` | `uk-boards.mjs` | Internship listing pages (all, work from home, marketing, business development, product management), then each job page's JSON-LD (region India) |
+| `manual` | `manual-roles.mjs` | Roles added by hand (e.g. from LinkedIn screenshots), with the best link found for each |
 | `luma` | `luma.mjs` | Luma's event search (London, for hackathon / hack / buildathon) and the `/london` page, keeping hackathons |
 | `linkedin-posts` | `linkedin-posts.mjs` | Public LinkedIn hiring posts and jobs, found with OpenAI's web search (linkedin.com only). Needs `OPENAI_API_KEY`; finds nothing without it. Only links the search returned are kept. LinkedIn itself is never visited (its robots.txt forbids crawlers). |
 
-**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `internshala`, `luma`. **Run by their own nightly jobs:** `company-boards`, `linkedin-posts` (`--source=all` runs everything).
+**Run by default:** `sheets`, `manual`, `northwestern-quant`, `simplify`, `speedyapply`, `internshala`, `luma`. **Run by their own nightly jobs:** `company-boards`, `linkedin-posts` (`--source=all` runs everything).
 `gradcracker`, `bright-network`, `prosple-uk` and `indeed-uk` refused automated requests in
 production (403 on their pages or robots.txt, or a robots.txt that disallows the feed), so they're
 off by default. Because the pipeline respects robots.txt and doesn't disguise itself, there's no
