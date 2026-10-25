@@ -65,6 +65,8 @@ Supabase SQL editor. The seed's deadlines are relative to the day you run it.
 | `APP_TIMEZONE`   | no       | IANA timezone (e.g. `America/New_York`, `Asia/Kolkata`) used to decide what "today" is for deadlines. Defaults to `UTC`. |
 | `INGEST_USERS`   | no       | Comma-separated user ids who see ingested jobs, e.g. `shlok,taran`. Defaults to every user. |
 | `INGEST_PROFILES` | no      | JSON per-person rules (year of study, grade, hidden regions); see [Who sees what](#who-sees-what). |
+| `OPENAI_API_KEY` | no      | Turns on the `linkedin-posts` source (OpenAI web search, about six searches a night). |
+| `LINKEDIN_POSTS_MODEL` | no  | Model for that search; default `gpt-5-mini`. |
 | `INGEST_SOURCES` | no       | Comma-separated source names from [Job ingestion](#job-ingestion). Defaults to the ones that work. |
 | `INGEST_SHEETS`  | no       | Comma-separated CSV / Google Sheets URLs to import (see [Your spreadsheets](#job-ingestion)). |
 | `INGEST_EXTRA_BOARDS` | no  | More company job boards to read, as `ats:board:Company` (see [Company boards](#job-ingestion)). |
@@ -144,12 +146,13 @@ deadline, source, link`):
 | `northwestern-quant` | `northwestern.mjs` | [northwesternfintech/2027QuantInternships](https://github.com/northwesternfintech/2027QuantInternships): open (✅) links only |
 | `simplify` | `simplify.mjs` | [SimplifyJobs/Summer2027-Internships](https://github.com/SimplifyJobs/Summer2027-Internships)' `listings.json`: active roles |
 | `speedyapply` | `speedyapply.mjs` | speedyapply's [2027 SWE](https://github.com/speedyapply/2027-SWE-College-Jobs) and [2027 AI](https://github.com/speedyapply/2027-AI-College-Jobs) internship lists (US and international) |
-| `company-boards` | `company-boards.mjs` | About 30 companies' own careers pages, through Greenhouse's, Lever's and Ashby's public job-board APIs: internships, placements, working-student roles and fellowships only. This is where the business roles come from (see below) |
+| `company-boards` | `company-boards.mjs` | About 170 companies' own careers pages (tech, fintech, AI, quant and trading; each board checked to belong to that company), through Greenhouse's, Lever's and Ashby's public job-board APIs: internships, placements, working-student roles and fellowships only. This is where the business roles come from (see below) |
 | `indeed-uk` | `indeed.mjs` | RSS for "intern" / "student" part-time jobs from the last 7 days, falling back to the search page's job cards |
 | `internshala` | `uk-boards.mjs` | Internship listing pages (all, work from home, marketing, business development, product management), then each job page's JSON-LD (region India) |
-| `luma` | `luma.mjs` | Luma discovery pages (`/london`, `/ai`, `/tech`), keeping hackathons |
+| `luma` | `luma.mjs` | Luma's event search (London, for hackathon / hack / buildathon) and the `/london` page, keeping hackathons |
+| `linkedin-posts` | `linkedin-posts.mjs` | Public LinkedIn hiring posts and jobs, found with OpenAI's web search (linkedin.com only). Needs `OPENAI_API_KEY`; finds nothing without it. Only links the search returned are kept. LinkedIn itself is never visited (its robots.txt forbids crawlers). |
 
-**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `company-boards`, `internshala`, `luma`.
+**Run by default:** `sheets`, `northwestern-quant`, `simplify`, `speedyapply`, `internshala`, `luma`. **Run by their own nightly jobs:** `company-boards`, `linkedin-posts` (`--source=all` runs everything).
 `gradcracker`, `bright-network`, `prosple-uk` and `indeed-uk` refused automated requests in
 production (403 on their pages or robots.txt, or a robots.txt that disallows the feed), so they're
 off by default. Because the pipeline respects robots.txt and doesn't disguise itself, there's no
@@ -273,7 +276,9 @@ Each source's counts are logged:
 **Being polite.** Requests send `User-Agent: ApplyTrackerBot/1.0 (+repo URL)` (override with
 `INGEST_USER_AGENT`). `robots.txt` is checked before every request: a missing file (`404`) allows
 everything, while `401`/`403`/`429`/`5xx` or an unreachable file means the site isn't crawled at
-all. Requests to one host are made one at a time, at least 2 s apart, or the site's `Crawl-delay`
+all. The exception is documented public job-board APIs (`PUBLIC_JOB_APIS` in `http.mjs`, currently
+Ashby's): their API hosts answer every unknown path with `401`, so there a `4xx` other than `429`
+means "no robots.txt", as RFC 9309 says. Requests to one host are made one at a time, at least 2 s apart (1 s for the Greenhouse, Lever and Ashby job-board APIs), or the site's `Crawl-delay`
 if longer (capped at 30 s). A `429`/`503` is retried once after `Retry-After`.
 
 Check a site's terms before turning one of the off-by-default sources back on.
@@ -293,7 +298,9 @@ row it stops, assuming the database is down.
 
 ### Nightly cron on Vercel
 
-`vercel.json` schedules `GET /api/cron/ingest` daily at 05:00 UTC. Vercel sends
+`vercel.json` schedules `GET /api/cron/ingest` three times a night, so each run gets the full
+300 s: the main sources at 05:00 UTC, `?sources=company-boards` at 04:00 and
+`?sources=linkedin-posts` at 06:00 (`?sources=` takes the same names as `INGEST_SOURCES`). Vercel sends
 `Authorization: Bearer $CRON_SECRET`; anything else gets `401`. The route runs the same pipeline
 and writes with the app's own `DATABASE_URL`. It returns the counts as JSON, with `200` when
 everything worked and `502` when a source failed or a job couldn't be saved. Its log has the
