@@ -67,7 +67,7 @@ export async function BoardSection() {
       </div>
       <Dashboard rows={rows} today={today} name={user.name} stats={stats[user.id] ?? empty} />
       <Party me={user.id} pets={pets} users={users} />
-      <section className="card-plain flex flex-col gap-4 p-4 sm:p-6">
+      <section id="roles" className="card-plain flex scroll-mt-4 flex-col gap-4 p-4 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="label-mono text-ink-500">Board</p>
