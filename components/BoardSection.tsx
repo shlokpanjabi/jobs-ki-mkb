@@ -3,10 +3,10 @@ import { switchUser } from "@/app/actions";
 import Link from "next/link";
 import { todayISO } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ELIGIBILITY_USERS } from "@/lib/eligibility.mjs";
+import { ELIGIBILITY_COURSES } from "@/lib/eligibility.mjs";
 import { gmailAccount } from "@/lib/inbound/db.mjs";
 import { describeHome } from "@/lib/home-filter";
-import { getBoardRows, getPetStats, getUsers, STAGE_CONTROL_USERS } from "@/lib/jobs";
+import { getBoardRows, getPetStats, getUsers } from "@/lib/jobs";
 import { petFor, SPECIES } from "@/lib/pets.mjs";
 import type { BoardRow } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
@@ -81,13 +81,7 @@ export async function BoardSection() {
           </p>
         </div>
         <AddRole users={users.map((u) => u.name)} />
-        <JobBoard
-          rows={rows}
-          today={today}
-          gmailAccount={gmail}
-          eligibility={ELIGIBILITY_USERS.includes(user.id)}
-          stageControl={STAGE_CONTROL_USERS.includes(user.id)}
-        />
+        <JobBoard rows={rows} today={today} gmailAccount={gmail} eligibility={user.id in ELIGIBILITY_COURSES} />
       </section>
     </div>
   );

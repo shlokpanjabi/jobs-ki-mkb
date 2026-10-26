@@ -1,10 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { todayISO } from "@/lib/ingest/normalise.mjs";
-import { verdictsFor } from "@/lib/eligibility.mjs";
 import { audienceFor, parseProfiles } from "@/lib/ingest/profiles.mjs";
 import { formatSummary, runIngest, selectSources } from "@/lib/ingest/run.mjs";
-import { backfillEligibility, createStore, relabelUkRegions, resolveUsers } from "@/lib/ingest/store.mjs";
+import { createStore, relabelUkRegions, resolveUsers } from "@/lib/ingest/store.mjs";
 
 // Sources are rate-limited, so a full run takes a minute or two.
 export const maxDuration = 300;
@@ -35,17 +34,10 @@ export async function GET(request: Request) {
       ? (job: Parameters<typeof audienceFor>[0], details: Parameters<typeof audienceFor>[1]) =>
           audienceFor(job, details, users, profiles, today)
       : undefined;
-    // Eligibility read from postings, for people who get verdicts (lib/eligibility.mjs).
-    const verdicts = (job: Parameters<typeof verdictsFor>[0], details: Parameters<typeof verdictsFor>[1]) =>
-      verdictsFor(job, details, users, profiles, today);
     const save = dryRun ? undefined : createStore(db(), users);
-    const summary = await runIngest({ sources, dryRun, save, audience, verdicts, today });
+    const summary = await runIngest({ sources, dryRun, save, audience, today });
     const relabelled = dryRun ? 0 : await relabelUkRegions(db());
-    const judged = dryRun ? 0 : await backfillEligibility(db(), profiles, today);
-    console.log(
-      `ingest summary\n${formatSummary(summary)}${relabelled ? `\nrelabelled ${relabelled} older UK jobs` : ""}` +
-        (judged ? `\neligibility from titles for ${judged} older rows` : ""),
-    );
+    console.log(`ingest summary\n${formatSummary(summary)}${relabelled ? `\nrelabelled ${relabelled} older UK jobs` : ""}`);
     return Response.json(summary, { status: summary.ok ? 200 : 502 });
   } catch (err) {
     // Setup errors (missing DATABASE_URL, unknown source or user names, bad
