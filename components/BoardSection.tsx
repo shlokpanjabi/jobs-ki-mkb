@@ -3,6 +3,7 @@ import { switchUser } from "@/app/actions";
 import Link from "next/link";
 import { todayISO } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { ELIGIBILITY_USERS } from "@/lib/eligibility.mjs";
 import { gmailAccount } from "@/lib/inbound/db.mjs";
 import { describeHome } from "@/lib/home-filter";
 import { getBoardRows, getPetStats, getUsers } from "@/lib/jobs";
@@ -80,7 +81,7 @@ export async function BoardSection() {
           </p>
         </div>
         <AddRole users={users.map((u) => u.name)} />
-        <JobBoard rows={rows} today={today} gmailAccount={gmail} />
+        <JobBoard rows={rows} today={today} gmailAccount={gmail} eligibility={ELIGIBILITY_USERS.includes(user.id)} />
       </section>
     </div>
   );

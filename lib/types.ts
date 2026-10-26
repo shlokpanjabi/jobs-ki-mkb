@@ -22,7 +22,13 @@ export type BoardRow = {
   status: Status;
   stage: Stage | null; // furthest invitation seen; never means it was completed
   actions: BoardAction[]; // open actions from emails, soonest first
+  // "Can I apply?" (lib/eligibility.mjs). Only on the boards of ELIGIBILITY_USERS.
+  eligibility?: { verdict: Verdict | null; note: string | null; manual: boolean };
 };
+
+// null = unknown. The note is the employer's wording, verbatim.
+export const VERDICTS = ["eligible", "worth_a_shot"] as const;
+export type Verdict = (typeof VERDICTS)[number];
 
 export const STAGES = ["assessment_invited", "interview_invited"] as const;
 export type Stage = (typeof STAGES)[number];
@@ -42,6 +48,10 @@ export type BoardAction = {
   // The email that last asked for it, to find in Gmail.
   email: { subject: string; senderDomain: string | null; messageId: string | null } | null;
 };
+
+export function isVerdict(value: unknown): value is Verdict {
+  return VERDICTS.includes(value as Verdict);
+}
 
 export function isStatus(value: unknown): value is Status {
   return STATUSES.includes(value as Status);

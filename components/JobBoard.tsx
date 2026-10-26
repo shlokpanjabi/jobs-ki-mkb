@@ -2,14 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
-import { updateAction, updateStatus } from "@/app/actions";
+import { updateAction, updateEligibility, updateStatus } from "@/app/actions";
 import { daysBetween } from "@/lib/dates";
 import { gmailLink } from "@/lib/inbound/gmail.mjs";
 import { postingHref } from "@/lib/links.mjs";
 import { XP } from "@/lib/pets.mjs";
 import { CompanyMark } from "./CompanyMark";
 import {
-  JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status,
+  JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status, type Verdict,
 } from "@/lib/types";
 
 const TYPE_LABEL: Record<JobType, string> = {
@@ -61,6 +61,22 @@ const DUE_LABEL = {
 } as const;
 type Due = keyof typeof DUE_LABEL;
 
+// "Can I apply?" on boards with eligibility (BoardRow.eligibility). Worth a shot
+// means the posting's stated requirement doesn't cover them; its words are shown.
+const VERDICT_LABEL: Record<Verdict | "unknown", string> = {
+  unknown: "Eligibility unknown",
+  eligible: "Eligible",
+  worth_a_shot: "Worth a shot",
+};
+
+const VERDICT_STYLE: Record<Verdict | "unknown", string> = {
+  unknown: "border-line-300 bg-white text-ink-500",
+  eligible: "border-ok-500 bg-ok-100 text-ok-700",
+  worth_a_shot: "border-note-700/40 bg-note-100 text-note-700",
+};
+
+const ELIGIBILITY_FILTER = { "": "Any eligibility", eligible: "Eligible only", shot: "Eligible + worth a shot" } as const;
+
 // The Status menu's option for the stage filter (Filters.stage).
 const INVITED = "stage:invited";
 
@@ -76,10 +92,12 @@ type Filters = {
   // "invited": applied and invited to an assessment or interview (the stage
   // shown under the status, and the dashboard's "Assessment / interview").
   stage: "" | "invited";
+  // Boards with eligibility only: "eligible", or "shot" for eligible + worth a shot.
+  elig: keyof typeof ELIGIBILITY_FILTER;
   sort: "asc" | "desc";
 };
 
-const DEFAULTS: Filters = { q: "", type: "", domain: "", region: "", due: "open", status: "", stage: "", sort: "asc" };
+const DEFAULTS: Filters = { q: "", type: "", domain: "", region: "", due: "open", status: "", stage: "", elig: "", sort: "asc" };
 
 function readFilters(params: URLSearchParams): Filters {
   const due = params.get("due") ?? "";
@@ -91,6 +109,7 @@ function readFilters(params: URLSearchParams): Filters {
     due: due in DUE_LABEL ? (due as Due) : DEFAULTS.due,
     status: params.get("status") ?? "",
     stage: params.get("stage") === "invited" ? "invited" : "",
+    elig: params.get("elig") === "eligible" ? "eligible" : params.get("elig") === "shot" ? "shot" : "",
     sort: params.get("sort") === "desc" ? "desc" : "asc",
   };
 }
@@ -145,7 +164,14 @@ function formatDate(iso: string, today: string): string {
 
 // gmailAccount: the Gmail address the person set on Settings, for "Open in
 // Gmail" links on actions; null when they haven't set one.
-export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; today: string; gmailAccount: string | null }) {
+// eligibility: this board has eligibility verdicts (the Eligibility filter and
+// a verdict under each status).
+export function JobBoard({ rows, today, gmailAccount, eligibility = false }: {
+  rows: BoardRow[];
+  today: string;
+  gmailAccount: string | null;
+  eligibility?: boolean;
+}) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
   // Queries this board has written to the URL that the router hasn't caught up with yet.
@@ -165,10 +191,19 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
   const [, startTransition] = useTransition();
   const [optimisticRows, setOptimistic] = useOptimistic(
     rows,
-    (current: BoardRow[], change: { id: number; status: Status } | { closedAction: number }) =>
+    (
+      current: BoardRow[],
+      change: { id: number; status: Status } | { closedAction: number } | { id: number; verdict: Verdict | null },
+    ) =>
       "closedAction" in change
         ? current.map((row) => ({ ...row, actions: row.actions.filter((a) => a.id !== change.closedAction) }))
-        : current.map((row) => (row.id === change.id ? { ...row, status: change.status } : row)),
+        : "verdict" in change
+          ? current.map((row) =>
+              row.id === change.id && row.eligibility
+                ? { ...row, eligibility: { ...row.eligibility, verdict: change.verdict, manual: true } }
+                : row,
+            )
+          : current.map((row) => (row.id === change.id ? { ...row, status: change.status } : row)),
   );
 
   const due = filters.due;
@@ -217,11 +252,12 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
           (!filters.region || r.region === filters.region) &&
           (!filters.status || r.status === filters.status) &&
           (!filters.stage || (r.status === "applied" && r.stage !== null)) &&
+          (!eligibility || !filters.elig || matchesEligibility(r, filters.elig)) &&
           matchesDue(r.deadline, due, today) &&
           (!q || searchText(r).includes(q)),
       )
       .sort((a, b) => compareDeadline(a, b, dir));
-  }, [optimisticRows, filters, query, due, today]);
+  }, [optimisticRows, filters, query, due, today, eligibility]);
 
   function changeStatus(id: number, status: Status) {
     setError(null);
@@ -232,6 +268,19 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
       setOptimistic({ id, status });
       try {
         const result = await updateStatus(id, status);
+        if (!result.ok) setError(result.error);
+      } catch {
+        setError("Couldn't save that change. Check your connection and try again.");
+      }
+    });
+  }
+
+  function changeEligibility(id: number, verdict: Verdict | null) {
+    setError(null);
+    startTransition(async () => {
+      setOptimistic({ id, verdict });
+      try {
+        const result = await updateEligibility(id, verdict ?? "unknown");
         if (!result.ok) setError(result.error);
       } catch {
         setError("Couldn't save that change. Check your connection and try again.");
@@ -316,6 +365,18 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
             s === "applied" && <option key={INVITED} value={INVITED}>Assessment / interview</option>,
           ])}
         </select>
+        {eligibility && (
+          <select
+            aria-label="Eligibility"
+            value={filters.elig}
+            onChange={(e) => update({ elig: e.target.value as Filters["elig"] })}
+            className={selectClass}
+          >
+            {(Object.keys(ELIGIBILITY_FILTER) as Filters["elig"][]).map((k) => (
+              <option key={k} value={k}>{ELIGIBILITY_FILTER[k]}</option>
+            ))}
+          </select>
+        )}
         {isFiltered && (
           <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 text-ink-900 underline decoration-1 underline-offset-4 hover:text-accent-500">
             Reset
@@ -363,6 +424,7 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
                 gmailAccount={gmailAccount}
                 onStatus={changeStatus}
                 onAction={finishAction}
+                onEligibility={changeEligibility}
               />
             ))}
           </tbody>
@@ -400,12 +462,14 @@ function JobRow({
   gmailAccount,
   onStatus,
   onAction,
+  onEligibility,
 }: {
   row: BoardRow;
   today: string;
   gmailAccount: string | null;
   onStatus: (id: number, status: Status) => void;
   onAction: (actionId: number, state: "done" | "dismissed") => void;
+  onEligibility: (id: number, verdict: Verdict | null) => void;
 }) {
   const location = row.region && row.region !== row.location
     ? [row.location, row.region].filter(Boolean).join(" · ")
@@ -424,6 +488,7 @@ function JobRow({
         {row.role}
         <div className="mt-0.5 text-xs text-ink-500 2xl:hidden">{[row.domain, row.source].filter(Boolean).join(" · ")}</div>
         {/* On phones the status column starts off-screen, so progress shows here too. */}
+        <Eligibility row={row} onChange={onEligibility} className="sm:hidden" />
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="sm:hidden" />
       </td>
       <td className="whitespace-nowrap px-3 py-3.5">{TYPE_LABEL[row.type]}</td>
@@ -444,6 +509,7 @@ function JobRow({
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
         </select>
+        <Eligibility row={row} onChange={onEligibility} className="hidden sm:block" />
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="hidden sm:block" />
       </td>
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
@@ -473,6 +539,46 @@ function JobRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function matchesEligibility(row: BoardRow, wanted: Filters["elig"]): boolean {
+  const verdict = row.eligibility?.verdict ?? null;
+  return verdict === "eligible" || (wanted === "shot" && verdict === "worth_a_shot");
+}
+
+// "Can I apply?" under the status, on boards with eligibility: a menu (the
+// person's choice wins over what was read from the posting) and the posting's
+// own words, so "worth a shot" never reads as meeting the requirement.
+function Eligibility({ row, onChange, className }: {
+  row: BoardRow;
+  onChange: (id: number, verdict: Verdict | null) => void;
+  className: string;
+}) {
+  if (!row.eligibility) return null;
+  const { verdict, note } = row.eligibility;
+  const value = verdict ?? "unknown";
+  return (
+    <div className={className}>
+      <select
+        value={value}
+        onChange={(e) => onChange(row.id, e.target.value === "unknown" ? null : (e.target.value as Verdict))}
+        aria-label={`Eligibility for ${row.company} ${row.role}`}
+        className={`label-mono mt-2 rounded-full border px-2.5 py-0.5 ${VERDICT_STYLE[value]}`}
+      >
+        {(Object.keys(VERDICT_LABEL) as (Verdict | "unknown")[]).map((v) => (
+          <option key={v} value={v}>{VERDICT_LABEL[v]}</option>
+        ))}
+      </select>
+      {note ? (
+        <p className="mt-1 max-w-60 text-xs text-ink-500">
+          {verdict === "worth_a_shot" ? "Employer asks for: " : "Posting says: "}
+          <q className="text-ink-700">{note}</q>
+        </p>
+      ) : (
+        verdict === "worth_a_shot" && <p className="mt-1 max-w-60 text-xs text-ink-500">Employer&apos;s wording not saved.</p>
+      )}
+    </div>
   );
 }
 

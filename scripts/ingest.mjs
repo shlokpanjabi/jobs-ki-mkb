@@ -6,9 +6,10 @@
 //   npm run ingest -- --source=simplify,luma    # only these sources
 import nextEnv from "@next/env";
 import { todayISO } from "../lib/ingest/normalise.mjs";
+import { verdictsFor } from "../lib/eligibility.mjs";
 import { audienceFor, parseProfiles } from "../lib/ingest/profiles.mjs";
 import { formatSummary, runIngest, selectSources } from "../lib/ingest/run.mjs";
-import { createStore, relabelUkRegions, resolveUsers } from "../lib/ingest/store.mjs";
+import { backfillEligibility, createStore, relabelUkRegions, resolveUsers } from "../lib/ingest/store.mjs";
 import { connect } from "./connect.mjs";
 
 nextEnv.loadEnvConfig(process.cwd(), true, { info() {}, error: console.error });
@@ -35,11 +36,14 @@ try {
     : undefined;
   console.log(`Users: ${users.join(", ") || "(none)"}; profiles for: ${Object.keys(profiles).join(", ") || "nobody (everyone sees everything)"}`);
   const save = sql ? createStore(sql, users) : undefined;
-  const summary = await runIngest({ sources, dryRun, save, audience, today });
+  const verdicts = (job, details) => verdictsFor(job, details, users, profiles, today);
+  const summary = await runIngest({ sources, dryRun, save, audience, verdicts, today });
   console.log(`\n${formatSummary(summary)}`);
   if (sql) {
     const relabelled = await relabelUkRegions(sql);
     if (relabelled) console.log(`Relabelled ${relabelled} older UK job(s) from "Europe" to London / UK (outside London)`);
+    const judged = await backfillEligibility(sql, profiles, today);
+    if (judged) console.log(`Eligibility from titles for ${judged} older row(s)`);
   }
   if (!summary.ok) process.exitCode = 1;
 } catch (err) {

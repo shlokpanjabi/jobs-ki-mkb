@@ -2,11 +2,14 @@ import { ensureAppSchema } from "./app-schema.mjs";
 import { db } from "./db";
 import { isValidISODate } from "./dates";
 import { dedupeKey } from "./dedupe.mjs";
+import { ELIGIBILITY_USERS } from "./eligibility.mjs";
 import { HOME_REGIONS } from "./home-filter";
 import { normalizeLink } from "./links.mjs";
 import { openActions } from "./inbound/db.mjs";
 import { regionFor } from "./ingest/normalise.mjs";
-import { JOB_TYPES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Status, type User } from "./types";
+import {
+  JOB_TYPES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Status, type User, type Verdict,
+} from "./types";
 
 export type JobInput = {
   company: string;
@@ -191,14 +194,15 @@ const REGION_NAMES = HOME_REGIONS.flatMap((r) => [...r.regions]);
 export async function getBoardRows(userId: string): Promise<BoardRow[]> {
   const sql = await ready();
   const [rows, actions] = await Promise.all([
-    sql<(Omit<BoardRow, "actions"> & { k: string })[]>`
+    sql<(Omit<BoardRow, "actions" | "eligibility"> & { k: string } & EligibilityColumns)[]>`
     with home as (select home_regions, home_types from users where id = ${userId}),
     region_map as (
       select * from unnest(${REGION_KEYS}::text[], ${REGION_NAMES}::text[]) as m(key, region)
     ),
     shown as (
       select j.id, j.company, j.role, j.type, j.domain, j.location, j.region, j.deadline, j.source, j.link,
-             uj.status, uj.stage, coalesce(j.dedupe_key, 'id:' || j.id) as k
+             uj.status, uj.stage, uj.eligibility, uj.eligibility_note, uj.eligibility_source,
+             coalesce(j.dedupe_key, 'id:' || j.id) as k
       from user_jobs uj
       join jobs j on j.id = uj.job_id
       cross join home h
@@ -215,15 +219,34 @@ export async function getBoardRows(userId: string): Promise<BoardRow[]> {
     one_per_job as (
       select distinct on (k) * from shown
       order by k, (status <> 'todo') desc, deadline asc nulls last, id
+    ),
+    -- Eligibility for the job: one set on the board wins, then any verdict.
+    verdicts as (
+      select distinct on (k) k, eligibility, eligibility_note, eligibility_source from shown
+      order by k, (eligibility_source = 'manual') desc nulls last, (eligibility is not null) desc, id
     )
     select o.id, o.company, o.role, o.type, o.domain, o.location, o.region,
-           to_char(o.deadline, 'YYYY-MM-DD') as deadline, s.source, o.link, o.status, o.stage, o.k
-    from one_per_job o join sources s using (k)
+           to_char(o.deadline, 'YYYY-MM-DD') as deadline, s.source, o.link, o.status, o.stage, o.k,
+           v.eligibility, v.eligibility_note, v.eligibility_source
+    from one_per_job o join sources s using (k) join verdicts v using (k)
     order by o.deadline asc nulls last, o.company`,
     boardActions(userId),
   ]);
-  return rows.map(({ k, ...row }) => ({ ...row, actions: actions.get(k) ?? [] }));
+  const verdicts = ELIGIBILITY_USERS.includes(userId);
+  return rows.map(({ k, eligibility, eligibility_note, eligibility_source, ...row }) => ({
+    ...row,
+    actions: actions.get(k) ?? [],
+    ...(verdicts && {
+      eligibility: { verdict: eligibility, note: eligibility_note, manual: eligibility_source === "manual" },
+    }),
+  }));
 }
+
+type EligibilityColumns = {
+  eligibility: Verdict | null;
+  eligibility_note: string | null;
+  eligibility_source: "manual" | "auto" | null;
+};
 
 type ActionRow = {
   id: number; kind: ActionKind; due_date: string | null; due_time: string | null; due_tz: string | null;
@@ -260,6 +283,24 @@ export async function setStatus(userId: string, jobId: number, status: Status): 
   const sql = await ready();
   const rows = await sql`
     update user_jobs set status = ${status}, status_source = 'manual', status_changed_at = now(), updated_at = now()
+    where user_id = ${userId} and eligible
+      and job_id in (
+        select j.id from jobs j, jobs target
+        where target.id = ${jobId}
+          and coalesce(j.dedupe_key, 'id:' || j.id) = coalesce(target.dedupe_key, 'id:' || target.id)
+      )
+    returning job_id`;
+  return rows.length > 0;
+}
+
+// Eligibility set on the board (null = unknown), on the job and its duplicates
+// like setStatus. Marked 'manual', so postings read later never change it; the
+// employer's wording already saved is kept. Only for ELIGIBILITY_USERS.
+export async function setEligibility(userId: string, jobId: number, verdict: Verdict | null): Promise<boolean> {
+  if (!ELIGIBILITY_USERS.includes(userId)) return false;
+  const sql = await ready();
+  const rows = await sql`
+    update user_jobs set eligibility = ${verdict}, eligibility_source = 'manual', updated_at = now()
     where user_id = ${userId} and eligible
       and job_id in (
         select j.id from jobs j, jobs target

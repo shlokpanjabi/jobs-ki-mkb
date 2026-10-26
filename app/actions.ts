@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { boardAuthorized } from "@/lib/board-auth";
 import { db } from "@/lib/db";
+import { ELIGIBILITY_USERS } from "@/lib/eligibility.mjs";
 import { closeAction } from "@/lib/inbound/db.mjs";
-import { addRoleByHand, getUsers, setStatus } from "@/lib/jobs";
-import { isStatus, type Status } from "@/lib/types";
+import { addRoleByHand, getUsers, setEligibility, setStatus } from "@/lib/jobs";
+import { isStatus, isVerdict, type Status, type Verdict } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
 
 // Server actions are reachable by direct POST, so re-check the board password
@@ -44,6 +45,23 @@ export async function updateStatus(
 
   const updated = await setStatus(userId, jobId, status);
   // Purges the client router cache so every page shows the change.
+  revalidatePath("/", "layout");
+  return updated ? { ok: true } : { ok: false, error: "That role is no longer on your board." };
+}
+
+// Eligibility on the board ("unknown" clears it), for the person in "Viewing
+// as" only, and only if they have eligibility verdicts (ELIGIBILITY_USERS).
+export async function updateEligibility(
+  jobId: number,
+  verdict: Verdict | "unknown",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await assertBoardAccess();
+  const userId = (await cookies()).get(USER_COOKIE)?.value;
+  if (!userId) return { ok: false, error: "Pick who you are first." };
+  if (!Number.isInteger(jobId) || !(verdict === "unknown" || isVerdict(verdict))) return { ok: false, error: "Invalid update." };
+  if (!ELIGIBILITY_USERS.includes(userId)) return { ok: false, error: "Eligibility isn't on for this board." };
+
+  const updated = await setEligibility(userId, jobId, verdict === "unknown" ? null : verdict);
   revalidatePath("/", "layout");
   return updated ? { ok: true } : { ok: false, error: "That role is no longer on your board." };
 }
