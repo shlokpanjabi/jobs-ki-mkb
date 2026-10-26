@@ -9,7 +9,7 @@ import { postingHref } from "@/lib/links.mjs";
 import { XP } from "@/lib/pets.mjs";
 import { CompanyMark } from "./CompanyMark";
 import {
-  JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status,
+  JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status, type Verdict,
 } from "@/lib/types";
 
 const TYPE_LABEL: Record<JobType, string> = {
@@ -61,6 +61,16 @@ const DUE_LABEL = {
 } as const;
 type Due = keyof typeof DUE_LABEL;
 
+// "Can I apply?" on boards with eligibility (BoardRow.eligibility). Worth a shot
+// means the role's stated requirement doesn't cover them; its words are shown.
+const VERDICT_LABEL: Record<Verdict, string> = { eligible: "Year-eligible", worth_a_shot: "Worth a shot" };
+const VERDICT_STYLE: Record<Verdict, string> = {
+  eligible: "bg-ok-100 text-ok-700",
+  worth_a_shot: "bg-note-100 text-note-700",
+};
+
+const ELIGIBILITY_FILTER = { "": "Any eligibility", eligible: "Year-eligible only", shot: "Year-eligible + worth a shot" } as const;
+
 // The Status menu's option for the stage filter (Filters.stage).
 const INVITED = "stage:invited";
 
@@ -76,10 +86,12 @@ type Filters = {
   // "invited": applied and invited to an assessment or interview (the stage
   // shown under the status, and the dashboard's "Assessment / interview").
   stage: "" | "invited";
+  // Boards with eligibility only: "eligible", or "shot" for eligible + worth a shot.
+  elig: keyof typeof ELIGIBILITY_FILTER;
   sort: "asc" | "desc";
 };
 
-const DEFAULTS: Filters = { q: "", type: "", domain: "", region: "", due: "open", status: "", stage: "", sort: "asc" };
+const DEFAULTS: Filters = { q: "", type: "", domain: "", region: "", due: "open", status: "", stage: "", elig: "", sort: "asc" };
 
 function readFilters(params: URLSearchParams): Filters {
   const due = params.get("due") ?? "";
@@ -91,6 +103,7 @@ function readFilters(params: URLSearchParams): Filters {
     due: due in DUE_LABEL ? (due as Due) : DEFAULTS.due,
     status: params.get("status") ?? "",
     stage: params.get("stage") === "invited" ? "invited" : "",
+    elig: params.get("elig") === "eligible" ? "eligible" : params.get("elig") === "shot" ? "shot" : "",
     sort: params.get("sort") === "desc" ? "desc" : "asc",
   };
 }
@@ -145,7 +158,14 @@ function formatDate(iso: string, today: string): string {
 
 // gmailAccount: the Gmail address the person set on Settings, for "Open in
 // Gmail" links on actions; null when they haven't set one.
-export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; today: string; gmailAccount: string | null }) {
+// eligibility: this board has eligibility (the Eligibility filter, and a label
+// under the status where the role states a requirement).
+export function JobBoard({ rows, today, gmailAccount, eligibility = false }: {
+  rows: BoardRow[];
+  today: string;
+  gmailAccount: string | null;
+  eligibility?: boolean;
+}) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
   // Queries this board has written to the URL that the router hasn't caught up with yet.
@@ -217,11 +237,12 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
           (!filters.region || r.region === filters.region) &&
           (!filters.status || r.status === filters.status) &&
           (!filters.stage || (r.status === "applied" && r.stage !== null)) &&
+          (!eligibility || !filters.elig || matchesEligibility(r, filters.elig)) &&
           matchesDue(r.deadline, due, today) &&
           (!q || searchText(r).includes(q)),
       )
       .sort((a, b) => compareDeadline(a, b, dir));
-  }, [optimisticRows, filters, query, due, today]);
+  }, [optimisticRows, filters, query, due, today, eligibility]);
 
   function changeStatus(id: number, status: Status) {
     setError(null);
@@ -316,6 +337,18 @@ export function JobBoard({ rows, today, gmailAccount }: { rows: BoardRow[]; toda
             s === "applied" && <option key={INVITED} value={INVITED}>Assessment / interview</option>,
           ])}
         </select>
+        {eligibility && (
+          <select
+            aria-label="Eligibility"
+            value={filters.elig}
+            onChange={(e) => update({ elig: e.target.value as Filters["elig"] })}
+            className={selectClass}
+          >
+            {(Object.keys(ELIGIBILITY_FILTER) as Filters["elig"][]).map((k) => (
+              <option key={k} value={k}>{ELIGIBILITY_FILTER[k]}</option>
+            ))}
+          </select>
+        )}
         {isFiltered && (
           <button onClick={() => update(DEFAULTS)} className="px-2 py-1.5 text-ink-900 underline decoration-1 underline-offset-4 hover:text-accent-500">
             Reset
@@ -424,6 +457,7 @@ function JobRow({
         {row.role}
         <div className="mt-0.5 text-xs text-ink-500 2xl:hidden">{[row.domain, row.source].filter(Boolean).join(" · ")}</div>
         {/* On phones the status column starts off-screen, so progress shows here too. */}
+        <Eligibility row={row} className="sm:hidden" />
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="sm:hidden" />
       </td>
       <td className="whitespace-nowrap px-3 py-3.5">{TYPE_LABEL[row.type]}</td>
@@ -444,6 +478,7 @@ function JobRow({
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
         </select>
+        <Eligibility row={row} className="hidden sm:block" />
         <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="hidden sm:block" />
       </td>
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
@@ -473,6 +508,31 @@ function JobRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function matchesEligibility(row: BoardRow, wanted: Filters["elig"]): boolean {
+  const verdict = row.eligibility?.verdict ?? null;
+  return verdict === "eligible" || (wanted === "shot" && verdict === "worth_a_shot");
+}
+
+// The verdict under the status, with the role's own words, so "worth a shot"
+// never reads as meeting the requirement. Nothing when it's unknown.
+function Eligibility({ row, className }: { row: BoardRow; className: string }) {
+  const verdict = row.eligibility?.verdict;
+  if (!verdict) return null;
+  return (
+    <div className={className}>
+      <div className={`label-mono mt-2 inline-block rounded-full px-2 py-0.5 sm:whitespace-nowrap ${VERDICT_STYLE[verdict]}`}>
+        {VERDICT_LABEL[verdict]}
+      </div>
+      {row.eligibility?.note && (
+        <p className="mt-1 max-w-60 text-xs text-ink-500">
+          {verdict === "worth_a_shot" ? "Asks for: " : "Says: "}
+          <q className="text-ink-700">{row.eligibility.note}</q>
+        </p>
+      )}
+    </div>
   );
 }
 

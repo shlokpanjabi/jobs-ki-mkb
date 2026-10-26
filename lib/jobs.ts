@@ -1,7 +1,8 @@
 import { ensureAppSchema } from "./app-schema.mjs";
 import { db } from "./db";
-import { isValidISODate } from "./dates";
+import { isValidISODate, todayISO } from "./dates";
 import { dedupeKey } from "./dedupe.mjs";
+import { ELIGIBILITY_COURSES, eligibilityFor, personFor } from "./eligibility.mjs";
 import { HOME_REGIONS } from "./home-filter";
 import { normalizeLink } from "./links.mjs";
 import { openActions } from "./inbound/db.mjs";
@@ -222,7 +223,13 @@ export async function getBoardRows(userId: string): Promise<BoardRow[]> {
     order by o.deadline asc nulls last, o.company`,
     boardActions(userId),
   ]);
-  return rows.map(({ k, ...row }) => ({ ...row, actions: actions.get(k) ?? [] }));
+  const course = ELIGIBILITY_COURSES[userId as keyof typeof ELIGIBILITY_COURSES];
+  const person = course ? personFor(course, todayISO()) : null;
+  return rows.map(({ k, ...row }) => ({
+    ...row,
+    actions: actions.get(k) ?? [],
+    ...(person && { eligibility: eligibilityFor(row.role, person) }),
+  }));
 }
 
 type ActionRow = {

@@ -22,7 +22,14 @@ export type BoardRow = {
   status: Status;
   stage: Stage | null; // furthest invitation seen; never means it was completed
   actions: BoardAction[]; // open actions from emails, soonest first
+  // "Can I apply?" from the role's wording (lib/eligibility.mjs); only on the
+  // boards of people in ELIGIBILITY_COURSES. note: the words it rests on.
+  eligibility?: { verdict: Verdict | null; note: string | null };
 };
+
+// null = unknown.
+export const VERDICTS = ["eligible", "worth_a_shot"] as const;
+export type Verdict = (typeof VERDICTS)[number];
 
 export const STAGES = ["assessment_invited", "interview_invited"] as const;
 export type Stage = (typeof STAGES)[number];
