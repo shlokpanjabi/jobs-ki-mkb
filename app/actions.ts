@@ -6,8 +6,8 @@ import { boardAuthorized } from "@/lib/board-auth";
 import { db } from "@/lib/db";
 import { ELIGIBILITY_USERS } from "@/lib/eligibility.mjs";
 import { closeAction } from "@/lib/inbound/db.mjs";
-import { addRoleByHand, getUsers, setEligibility, setStatus } from "@/lib/jobs";
-import { isStatus, isVerdict, type Status, type Verdict } from "@/lib/types";
+import { addRoleByHand, getUsers, setEligibility, setStage, setStatus, STAGE_CONTROL_USERS } from "@/lib/jobs";
+import { isStage, isStatus, isVerdict, type Stage, type Status, type Verdict } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
 
 // Server actions are reachable by direct POST, so re-check the board password
@@ -45,6 +45,23 @@ export async function updateStatus(
 
   const updated = await setStatus(userId, jobId, status);
   // Purges the client router cache so every page shows the change.
+  revalidatePath("/", "layout");
+  return updated ? { ok: true } : { ok: false, error: "That role is no longer on your board." };
+}
+
+// Stage on the board ("none" clears it), for the person in "Viewing as", if
+// they can set it by hand (STAGE_CONTROL_USERS).
+export async function updateStage(
+  jobId: number,
+  stage: Stage | "none",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await assertBoardAccess();
+  const userId = (await cookies()).get(USER_COOKIE)?.value;
+  if (!userId) return { ok: false, error: "Pick who you are first." };
+  if (!Number.isInteger(jobId) || !(stage === "none" || isStage(stage))) return { ok: false, error: "Invalid update." };
+  if (!STAGE_CONTROL_USERS.includes(userId)) return { ok: false, error: "Setting the stage isn't on for this board." };
+
+  const updated = await setStage(userId, jobId, stage === "none" ? null : stage);
   revalidatePath("/", "layout");
   return updated ? { ok: true } : { ok: false, error: "That role is no longer on your board." };
 }

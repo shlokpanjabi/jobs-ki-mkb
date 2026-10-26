@@ -8,7 +8,7 @@ import { normalizeLink } from "./links.mjs";
 import { openActions } from "./inbound/db.mjs";
 import { regionFor } from "./ingest/normalise.mjs";
 import {
-  JOB_TYPES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Status, type User, type Verdict,
+  JOB_TYPES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status, type User, type Verdict,
 } from "./types";
 
 export type JobInput = {
@@ -283,6 +283,27 @@ export async function setStatus(userId: string, jobId: number, status: Status): 
   const sql = await ready();
   const rows = await sql`
     update user_jobs set status = ${status}, status_source = 'manual', status_changed_at = now(), updated_at = now()
+    where user_id = ${userId} and eligible
+      and job_id in (
+        select j.id from jobs j, jobs target
+        where target.id = ${jobId}
+          and coalesce(j.dedupe_key, 'id:' || j.id) = coalesce(target.dedupe_key, 'id:' || target.id)
+      )
+    returning job_id`;
+  return rows.length > 0;
+}
+
+/** People who can set the stage by hand on their board (otherwise only emails set it). */
+export const STAGE_CONTROL_USERS = ["shlok"];
+
+// Stage set on the board (null = no invitation yet), on the job and its
+// duplicates like setStatus. Means invited, not that it was completed. Emails
+// can still move it on later, as they do now.
+export async function setStage(userId: string, jobId: number, stage: Stage | null): Promise<boolean> {
+  if (!STAGE_CONTROL_USERS.includes(userId)) return false;
+  const sql = await ready();
+  const rows = await sql`
+    update user_jobs set stage = ${stage}, updated_at = now()
     where user_id = ${userId} and eligible
       and job_id in (
         select j.id from jobs j, jobs target

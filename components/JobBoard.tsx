@@ -2,14 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
-import { updateAction, updateEligibility, updateStatus } from "@/app/actions";
+import { updateAction, updateEligibility, updateStage, updateStatus } from "@/app/actions";
 import { daysBetween } from "@/lib/dates";
 import { gmailLink } from "@/lib/inbound/gmail.mjs";
 import { postingHref } from "@/lib/links.mjs";
 import { XP } from "@/lib/pets.mjs";
 import { CompanyMark } from "./CompanyMark";
 import {
-  JOB_TYPES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status, type Verdict,
+  JOB_TYPES, STAGES, STATUSES, type ActionKind, type BoardAction, type BoardRow, type JobType, type Stage, type Status, type Verdict,
 } from "@/lib/types";
 
 const TYPE_LABEL: Record<JobType, string> = {
@@ -165,12 +165,14 @@ function formatDate(iso: string, today: string): string {
 // gmailAccount: the Gmail address the person set on Settings, for "Open in
 // Gmail" links on actions; null when they haven't set one.
 // eligibility: this board has eligibility verdicts (the Eligibility filter and
-// a verdict under each status).
-export function JobBoard({ rows, today, gmailAccount, eligibility = false }: {
+// a verdict under each status). stageControl: the stage under an applied
+// role's status is a menu, not just a label.
+export function JobBoard({ rows, today, gmailAccount, eligibility = false, stageControl = false }: {
   rows: BoardRow[];
   today: string;
   gmailAccount: string | null;
   eligibility?: boolean;
+  stageControl?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => readFilters(searchParams));
@@ -193,10 +195,16 @@ export function JobBoard({ rows, today, gmailAccount, eligibility = false }: {
     rows,
     (
       current: BoardRow[],
-      change: { id: number; status: Status } | { closedAction: number } | { id: number; verdict: Verdict | null },
+      change:
+        | { id: number; status: Status }
+        | { closedAction: number }
+        | { id: number; verdict: Verdict | null }
+        | { id: number; stage: Stage | null },
     ) =>
       "closedAction" in change
         ? current.map((row) => ({ ...row, actions: row.actions.filter((a) => a.id !== change.closedAction) }))
+        : "stage" in change
+          ? current.map((row) => (row.id === change.id ? { ...row, stage: change.stage } : row))
         : "verdict" in change
           ? current.map((row) =>
               row.id === change.id && row.eligibility
@@ -268,6 +276,19 @@ export function JobBoard({ rows, today, gmailAccount, eligibility = false }: {
       setOptimistic({ id, status });
       try {
         const result = await updateStatus(id, status);
+        if (!result.ok) setError(result.error);
+      } catch {
+        setError("Couldn't save that change. Check your connection and try again.");
+      }
+    });
+  }
+
+  function changeStage(id: number, stage: Stage | null) {
+    setError(null);
+    startTransition(async () => {
+      setOptimistic({ id, stage });
+      try {
+        const result = await updateStage(id, stage ?? "none");
         if (!result.ok) setError(result.error);
       } catch {
         setError("Couldn't save that change. Check your connection and try again.");
@@ -425,6 +446,7 @@ export function JobBoard({ rows, today, gmailAccount, eligibility = false }: {
                 onStatus={changeStatus}
                 onAction={finishAction}
                 onEligibility={changeEligibility}
+                onStage={stageControl ? changeStage : null}
               />
             ))}
           </tbody>
@@ -463,6 +485,7 @@ function JobRow({
   onStatus,
   onAction,
   onEligibility,
+  onStage,
 }: {
   row: BoardRow;
   today: string;
@@ -470,6 +493,7 @@ function JobRow({
   onStatus: (id: number, status: Status) => void;
   onAction: (actionId: number, state: "done" | "dismissed") => void;
   onEligibility: (id: number, verdict: Verdict | null) => void;
+  onStage: ((id: number, stage: Stage | null) => void) | null;
 }) {
   const location = row.region && row.region !== row.location
     ? [row.location, row.region].filter(Boolean).join(" · ")
@@ -489,7 +513,7 @@ function JobRow({
         <div className="mt-0.5 text-xs text-ink-500 2xl:hidden">{[row.domain, row.source].filter(Boolean).join(" · ")}</div>
         {/* On phones the status column starts off-screen, so progress shows here too. */}
         <Eligibility row={row} onChange={onEligibility} className="sm:hidden" />
-        <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="sm:hidden" />
+        <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} onStage={onStage} className="sm:hidden" />
       </td>
       <td className="whitespace-nowrap px-3 py-3.5">{TYPE_LABEL[row.type]}</td>
       <td className="hidden px-3 py-3.5 2xl:table-cell">{row.domain ?? "—"}</td>
@@ -510,7 +534,7 @@ function JobRow({
           ))}
         </select>
         <Eligibility row={row} onChange={onEligibility} className="hidden sm:block" />
-        <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} className="hidden sm:block" />
+        <Progress row={row} gmailAccount={gmailAccount} onAction={onAction} onStage={onStage} className="hidden sm:block" />
       </td>
       {/* Sticky so Apply stays reachable when the table scrolls on small screens. */}
       <td className="sticky right-0 bg-white px-3 py-3 transition-colors group-hover:bg-paper-50">
@@ -583,22 +607,39 @@ function Eligibility({ row, onChange, className }: {
 }
 
 // Stage and open actions, shown beneath the job's status.
+// onStage: set the stage by hand (boards with stageControl); for applied roles
+// the stage is then a menu, including "no invite yet".
 function Progress({
   row,
   gmailAccount,
   onAction,
+  onStage,
   className,
 }: {
   row: BoardRow;
   gmailAccount: string | null;
   onAction: (actionId: number, state: "done" | "dismissed") => void;
+  onStage: ((id: number, stage: Stage | null) => void) | null;
   className: string;
 }) {
   const stage = row.stage && row.status === "applied" ? STAGE_LABEL[row.stage] : null;
-  if (!stage && !row.actions.length) return null;
+  const stageMenu = onStage !== null && row.status === "applied";
+  if (!stage && !stageMenu && !row.actions.length) return null;
   return (
     <div className={className}>
-      {stage && row.stage && (
+      {stageMenu ? (
+        <select
+          value={row.stage ?? ""}
+          onChange={(e) => onStage(row.id, e.target.value ? (e.target.value as Stage) : null)}
+          aria-label={`Stage for ${row.company} ${row.role}`}
+          className={`label-mono mt-2 rounded-full px-2 py-0.5 ${row.stage ? STAGE_STYLE[row.stage] : "border border-line-300 bg-white text-ink-500"}`}
+        >
+          <option value="">No invite yet</option>
+          {STAGES.map((s) => (
+            <option key={s} value={s}>{STAGE_LABEL[s]}</option>
+          ))}
+        </select>
+      ) : stage && row.stage && (
         <div className={`label-mono mt-2 inline-block rounded-full px-2 py-0.5 sm:whitespace-nowrap ${STAGE_STYLE[row.stage]}`}>
           {stage}
         </div>

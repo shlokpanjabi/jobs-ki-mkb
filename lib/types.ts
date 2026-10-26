@@ -49,6 +49,10 @@ export type BoardAction = {
   email: { subject: string; senderDomain: string | null; messageId: string | null } | null;
 };
 
+export function isStage(value: unknown): value is Stage {
+  return STAGES.includes(value as Stage);
+}
+
 export function isVerdict(value: unknown): value is Verdict {
   return VERDICTS.includes(value as Verdict);
 }
