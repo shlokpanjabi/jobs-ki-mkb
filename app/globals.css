@@ -200,9 +200,15 @@ body {
   .confetti {
     animation: confetti 2.6s ease-in forwards;
   }
+  /* Evolution: the old form brightens a little before it turns into a shape. */
   .evolve-glow {
-    animation: evolve-glow 1.6s ease-in-out 2;
+    animation: evolve-glow 900ms ease-in forwards;
   }
+}
+
+/* A short fade in; also used with reduced motion, as it doesn't move anything. */
+.evolve-fade {
+  animation: evolve-fade 300ms ease-out both;
 }
 
 @keyframes pet-bob {
@@ -231,6 +237,10 @@ body {
   to { transform: translateY(110vh) rotate(540deg); opacity: 0.8; }
 }
 @keyframes evolve-glow {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(3) saturate(0); }
+  from { filter: brightness(1) drop-shadow(0 0 0 rgb(255 255 255 / 0)); }
+  to { filter: brightness(1.25) drop-shadow(0 0 14px rgb(255 255 255 / 0.9)); }
+}
+@keyframes evolve-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

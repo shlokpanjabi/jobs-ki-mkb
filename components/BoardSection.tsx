@@ -61,6 +61,7 @@ export async function BoardSection() {
         species={mine.speciesKey}
         form={mine.form}
         names={SPECIES[mine.speciesKey].forms.map((f) => f.name)}
+        nickname={mine.name !== mine.formName ? mine.name : null}
       />
       <div className="flex justify-end">
         <UserSwitcher users={users} current={user.id} />
