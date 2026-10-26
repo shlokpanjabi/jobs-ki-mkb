@@ -63,13 +63,13 @@ type Due = keyof typeof DUE_LABEL;
 
 // "Can I apply?" on boards with eligibility (BoardRow.eligibility). Worth a shot
 // means the role's stated requirement doesn't cover them; its words are shown.
-const VERDICT_LABEL: Record<Verdict, string> = { eligible: "Eligible", worth_a_shot: "Worth a shot" };
+const VERDICT_LABEL: Record<Verdict, string> = { eligible: "Year-eligible", worth_a_shot: "Worth a shot" };
 const VERDICT_STYLE: Record<Verdict, string> = {
   eligible: "bg-ok-100 text-ok-700",
   worth_a_shot: "bg-note-100 text-note-700",
 };
 
-const ELIGIBILITY_FILTER = { "": "Any eligibility", eligible: "Eligible only", shot: "Eligible + worth a shot" } as const;
+const ELIGIBILITY_FILTER = { "": "Any eligibility", eligible: "Year-eligible only", shot: "Year-eligible + worth a shot" } as const;
 
 // The Status menu's option for the stage filter (Filters.stage).
 const INVITED = "stage:invited";
