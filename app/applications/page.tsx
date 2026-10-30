@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
 import { todayISO } from "@/lib/dates";
-import { getBoardRows, getUsers } from "@/lib/jobs";
+import { getApplications } from "@/lib/applications";
+import { getUsers } from "@/lib/jobs";
 import type { ActionKind, BoardRow, Status } from "@/lib/types";
 import { USER_COOKIE } from "@/lib/user";
 
@@ -13,7 +14,9 @@ const STATUS_LABEL: Record<Exclude<Status, "todo">, string> = {
 };
 const SECTIONS: Exclude<Status, "todo">[] = ["offer", "applied", "rejected"];
 
-const STAGE_LABEL = { assessment_invited: "Assessment invited", interview_invited: "Interview invited" } as const;
+// History only: the furthest invitation an email showed. It does not mean the
+// assessment or interview is still to do; that is the "Next step" pill.
+const STAGE_LABEL = { assessment_invited: "Reached assessment", interview_invited: "Reached interview" } as const;
 const ACTION_LABEL: Record<ActionKind, string> = {
   complete_assessment: "Complete assessment",
   book_interview: "Book interview",
@@ -34,10 +37,10 @@ function ApplicationRow({ row }: { row: BoardRow }) {
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        {row.stage && <span className="label-mono rounded-full bg-paper-100 px-2 py-1 text-ink-900">{STAGE_LABEL[row.stage]}</span>}
+        {row.stage && <span title="History: furthest invitation seen" className="label-mono rounded-full bg-paper-100 px-2 py-1 text-ink-500">{STAGE_LABEL[row.stage]}</span>}
         {row.actions.map((a) => (
           <span key={a.id} className="label-mono rounded-full bg-ink-900 px-2 py-1 text-paper-50">
-            {ACTION_LABEL[a.kind]}
+            Next: {ACTION_LABEL[a.kind]}
             {a.dueDate ? ` · ${a.dueDate}` : ""}
           </span>
         ))}
@@ -74,7 +77,7 @@ async function Applications() {
       </div>
     );
   }
-  const rows = (await getBoardRows(user.id)).filter((r) => r.status !== "todo");
+  const rows = (await getApplications(user.id)).filter((r) => r.status !== "todo");
   const today = todayISO();
   const upcoming = rows.filter((r) => r.actions.length > 0);
 
@@ -84,7 +87,7 @@ async function Applications() {
         <p className="label-mono text-ink-500">Tracking · {user.name}</p>
         <h1 className="title-outline mt-1 text-4xl sm:text-5xl">Applications</h1>
         <p className="mt-2 text-sm text-ink-500">
-          {rows.length} role{rows.length === 1 ? "" : "s"} past &quot;to do&quot; as of {today}. Statuses come from the board and forwarded emails.
+          {rows.length} application{rows.length === 1 ? "" : "s"} as of {today}, the same count as Applications sent on the dashboard. Statuses come from the board and forwarded emails. A grey stage pill is history; a dark Next pill is an open to-do.
         </p>
       </div>
 
