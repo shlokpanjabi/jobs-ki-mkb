@@ -6,6 +6,7 @@ import { Icon, type IconName } from "./Icons";
 
 const LINKS: [string, string, IconName][] = [
   ["/", "Dashboard", "grid"],
+  ["/applications", "Applications", "grid"],
   ["/pets", "Pets", "paw"],
   ["/inbox", "Email matches", "mail"],
   ["/settings", "Settings", "gear"],
