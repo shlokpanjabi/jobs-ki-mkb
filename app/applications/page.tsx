@@ -18,6 +18,24 @@ const STAGE_LABEL = { assessment_invited: "Assessment invited", interview_invite
 const ACTION_LABEL: Record<ActionKind, string> = {
   complete_assessment: "Complete assessment",
   book_interview: "Book interview",
+import Link from "next/link";
+import { Suspense } from "react";
+import { todayISO } from "@/lib/dates";
+import { getBoardRows, getUsers } from "@/lib/jobs";
+import type { ActionKind, BoardRow, Status } from "@/lib/types";
+import { USER_COOKIE } from "@/lib/user";
+
+const STATUS_LABEL: Record<Exclude<Status, "todo">, string> = {
+  offer: "Offer",
+  applied: "Applied",
+  rejected: "Rejected",
+};
+const SECTIONS: Exclude<Status, "todo">[] = ["offer", "applied", "rejected"];
+
+const STAGE_LABEL = { assessment_invited: "Assessment invited", interview_invited: "Interview invited" } as const;
+const ACTION_LABEL: Record<ActionKind, string> = {
+  complete_assessment: "Complete assessment",
+  book_interview: "Book interview",
   attend_interview: "Attend interview",
 };
 
@@ -53,7 +71,15 @@ function ApplicationRow({ row }: { row: BoardRow }) {
   );
 }
 
-export default async function ApplicationsPage() {
+export default function ApplicationsPage() {
+  return (
+    <Suspense fallback={<p className="label-mono py-16 text-center text-ink-300">Loading…</p>}>
+      <Applications />
+    </Suspense>
+  );
+}
+
+async function Applications() {
   const cookieUser = (await cookies()).get(USER_COOKIE)?.value ?? "";
   const users = await getUsers();
   const user = users.find((u) => u.id === cookieUser);
